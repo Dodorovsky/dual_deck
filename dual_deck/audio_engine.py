@@ -5,7 +5,7 @@ class AudioEngine:
         self.state = "stopped"   # "playing", "paused", "stopped"
 
     def load(self, file_path: str) -> float:
-        # Duración ficticia por ahora
+        # Fictitious duration for now
         self.duration = 180.0
         self.position = 0
         self.state = "stopped"
