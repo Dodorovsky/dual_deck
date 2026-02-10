@@ -1,5 +1,6 @@
 import pyaudio
 from pydub import AudioSegment
+import audioop
 
 class AudioEngine:
     def __init__(self):
@@ -12,6 +13,8 @@ class AudioEngine:
         self._frame_rate = 44100
         self._channels = 2
         self._sample_width = 2
+        self._volume = 1.0
+
 
         self._stream = None
         self._byte_position = 0
@@ -47,7 +50,12 @@ class AudioEngine:
         start = self._byte_position
         end = start + bytes_requested
 
-        chunk = self._raw_data[start:end]
+        chunk = self._audio.raw_data[self._byte_position:end]
+
+        # Aplicar volumen real
+        if self._volume != 1.0:
+            chunk = audioop.mul(chunk, self._sample_width, self._volume)
+
 
         # Update byte position
         self._byte_position = end
@@ -63,7 +71,6 @@ class AudioEngine:
         return (chunk, pyaudio.paContinue)
 
     def play(self):
-        print("AudioEngine.play called, state:", self.state)
         if self._audio is None:
             return
 
@@ -108,8 +115,9 @@ class AudioEngine:
         self._byte_position = int(position * self._frame_rate) * bytes_per_frame
         self.position = position
 
-    def set_volume(self, volume):
-        pass  # siguiente fase
+    def set_volume(self, volume: float):
+        # Clamp por seguridad
+        self._volume = max(0.0, min(1.0, volume))
 
     def set_pitch(self, pitch):
         pass  # siguiente fase

@@ -37,7 +37,6 @@ class Deck:
 
         print(f"[{self._track_path}] Paused")
 
-
     def get_position(self):
         return self._position
 
@@ -58,7 +57,6 @@ class Deck:
         if self._audio_engine:
             self._audio_engine.stop()
 
-            
     def seek(self, position):
         self._position = position
         if self._audio_engine:

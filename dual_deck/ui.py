@@ -39,7 +39,6 @@ def pause_b():
     dual.deck_b.pause()
     print("Pause B")
 
-
 def stop_a():
     dual.deck_a.stop()
     print("Stop A")
@@ -75,7 +74,7 @@ def file_dialog_callback(sender, app_data):
 def start_ui():
     dpg.create_context()
 
-    with dpg.window(label="Dual Deck", width=600, height=400):
+    with dpg.window(label="Dual Deck", width=600, height=600):
 
         dpg.add_text("Deck A")
         dpg.add_button(label="Load A", callback=load_track_a)
@@ -90,6 +89,27 @@ def start_ui():
         dpg.add_button(label="Play B", callback=play_b)
         dpg.add_button(label="Pause B", callback=pause_b)
         dpg.add_button(label="Stop B", callback=stop_b)
+        
+        dpg.add_text("Volume A")
+        dpg.add_slider_float(
+            label="",
+            default_value=1.0,
+            min_value=0.0,
+            max_value=1.0,
+            width=200,
+            callback=lambda s, a: dual.deck_a.set_volume(a)
+        )
+
+        dpg.add_text("Volume B")
+        dpg.add_slider_float(
+            label="",
+            default_value=1.0,
+            min_value=0.0,
+            max_value=1.0,
+            width=200,
+            callback=lambda s, a: dual.deck_b.set_volume(a)
+        )
+
 
         dpg.add_spacer(height=20)
 
@@ -111,13 +131,12 @@ def start_ui():
         width=600,
         height=400
     ):
-       
         dpg.add_file_extension(".mp3", color=(0, 255, 0, 255))
         dpg.add_file_extension(".wav", color=(0, 200, 255, 255))
         
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
 
-    dpg.create_viewport(title="Dual Deck", width=600, height=400)
+    dpg.create_viewport(title="Dual Deck", width=600, height=600)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.start_dearpygui()
