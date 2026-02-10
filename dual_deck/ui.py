@@ -6,11 +6,67 @@ from dual_deck.deck import DualDeck
 dual = DualDeck(audio_engine_cls=AudioEngine)
 
 current_load_target = None   # "A" or "B"
+current_slider_value = 0.0
+
 
 
 # -----------------------------
 # Control callbacks
 # -----------------------------
+
+
+def update_pitch_display():
+    pitch_percent = (dual.get_pitch() - 1.0) * 100
+
+    dpg.set_value("pitch_label", f"{pitch_percent:+.1f}%")
+
+    if hasattr(dual, "original_bpm"):
+        bpm_actual = dual.original_bpm * dual._pitch
+        dpg.set_value("bpm_label", f"{bpm_actual:.2f} BPM")
+
+def on_pitch_slider(sender, app_data):
+    global current_slider_value
+    current_slider_value = float(app_data)
+
+    dual.set_pitch_slider(current_slider_value)
+    update_pitch_display()
+
+def on_pitch_range(sender, app_data, user_data):
+    global current_slider_value
+    dual.set_pitch_range(user_data)
+    dual.set_pitch_slider(current_slider_value)
+    update_pitch_display()
+
+def build_pitch_ui():
+    with dpg.group(horizontal=True):
+
+        # Pitch slider vertical
+        dpg.add_slider_float(
+            tag="pitch_slider",
+            label="Pitch",
+            default_value=0.0,
+            min_value=-1.0,
+            max_value=1.0,
+            width=40,
+            height=200,
+            vertical=True,
+            callback=on_pitch_slider
+        )
+
+        with dpg.group():
+            dpg.add_text("Pitch Range")
+            dpg.add_button(label="±8%",  width=60, callback=on_pitch_range, user_data=0.08)
+            dpg.add_button(label="±16%", width=60, callback=on_pitch_range, user_data=0.16)
+            dpg.add_button(label="±50%", width=60, callback=on_pitch_range, user_data=0.50)
+
+            dpg.add_spacer(height=10)
+            dpg.add_text("Pitch:", color=(200, 200, 255))
+            dpg.add_text("+0.0%", tag="pitch_label")
+
+            dpg.add_spacer(height=10)
+            dpg.add_text("BPM:", color=(200, 255, 200))
+            dpg.add_text("0.00 BPM", tag="bpm_label")
+
 
 def load_track_a():
     global current_load_target
@@ -21,7 +77,6 @@ def load_track_b():
     global current_load_target
     current_load_target = "B"
     dpg.show_item("file_dialog_id")
-
 
 def play_a():
     dual.deck_a.play()
@@ -66,7 +121,7 @@ def start_ui():
     dpg.create_context()
 
     with dpg.window(label="Dual Deck", width=600, height=600):
-
+        
         dpg.add_text("Deck A")
         dpg.add_button(label="Load A", callback=load_track_a)
         dpg.add_button(label="Play A", callback=play_a)
@@ -80,7 +135,7 @@ def start_ui():
         dpg.add_button(label="Play B", callback=play_b)
         dpg.add_button(label="Pause B", callback=pause_b)
         dpg.add_button(label="Stop B", callback=stop_b)
-        
+        build_pitch_ui()
         dpg.add_text("Volume A")
         dpg.add_slider_float(
             label="",

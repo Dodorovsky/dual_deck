@@ -13,6 +13,7 @@ class AudioEngine:
 
         self._volume = 1.0
         self._pitch = 1.0
+        self.pitch_range = 0.08   # ±8% por defecto
 
         self._byte_position = 0
         self.state = "stopped"
@@ -54,6 +55,34 @@ class AudioEngine:
         # throw thread
         self._thread = threading.Thread(target=self._play_loop)
         self._thread.start()
+        
+    def pause(self):
+        if self.state != "playing":
+            return
+
+        self._stop_flag = True
+        self.state = "paused"
+        
+    def resume(self):
+        if self.state != "paused":
+            return
+
+        self._stop_flag = False
+        self.state = "playing"
+
+        # reabrir stream
+        self._stream = self._pyaudio.open(
+            format=self._pyaudio.get_format_from_width(self._sample_width),
+            channels=self._channels,
+            rate=self._frame_rate,
+            output=True
+        )
+
+        # lanzar hilo de reproducción
+        self._thread = threading.Thread(target=self._play_loop)
+        self._thread.start()
+
+
 
     def stop(self):
         self._stop_flag = True
@@ -61,6 +90,16 @@ class AudioEngine:
 
     def set_pitch(self, pitch):
         self._pitch = max(0.5, min(2.0, pitch))
+        
+    def set_pitch_range(self, r):
+        # r debe ser 0.08, 0.16 o 0.50
+        self.pitch_range = r
+        
+    def set_pitch_slider(self, slider_value):
+        # slider_value ∈ [-1.0, +1.0]
+        self._pitch = 1.0 + (slider_value * self.pitch_range)
+
+
 
     def set_volume(self, vol):
         self._volume = max(0.0, min(1.0, vol))

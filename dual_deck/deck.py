@@ -13,6 +13,8 @@ class Deck:
         self._position = 0
         self._volume = 1.0
         self._pitch = 1.0
+        
+
 
     # --- Initial state ---
     def is_loaded(self):
@@ -33,6 +35,12 @@ class Deck:
 
         if self._audio_engine:
             self._audio_engine.pause()
+            
+
+    def resume(self):
+        if self._audio_engine:
+            self._audio_engine.resume()
+
 
     def get_position(self):
         return self._position
@@ -91,17 +99,51 @@ class Deck:
         self._pitch = pitch
         if self._audio_engine:
             self._audio_engine.set_pitch(pitch)
+            
+    def set_pitch_range(self, r):
+        if self._audio_engine:
+            self._audio_engine.set_pitch_range(r)
+
+            
+    def set_pitch_slider(self, value):
+        if self._audio_engine:
+            self._audio_engine.set_pitch_slider(value)
+
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
         self.deck_a = Deck(audio_engine_cls() if audio_engine_cls else None)
         self.deck_b = Deck(audio_engine_cls() if audio_engine_cls else None)
         self.crossfader = 0.5  # 0 = A, 1 = B
+        self.active_deck = "A"
+
 
     def set_crossfader(self, value):
         self.crossfader = value
         # Adjust relative volumes
         self.deck_a.set_volume(1 - value)
         self.deck_b.set_volume(value)
+
+    def set_active_deck(self, deck_id):
+        self.active_deck = deck_id  # "A" o "B"
+
+    def set_pitch_slider(self, value):
+        if self.active_deck == "A":
+            self.deck_a.set_pitch_slider(value)
+        else:
+            self.deck_b.set_pitch_slider(value)
+
+    def set_pitch_range(self, r):
+        if self.active_deck == "A":
+            self.deck_a.set_pitch_range(r)
+        else:
+            self.deck_b.set_pitch_range(r)
+
+    def _active_deck(self):
+        return self.deck_a if self.crossfader < 0.5 else self.deck_b
+
+    def get_pitch(self):
+        return self._active_deck()._pitch
+
 
 
