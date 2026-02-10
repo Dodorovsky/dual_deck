@@ -7,12 +7,23 @@ dual = DualDeck(audio_engine_cls=AudioEngine)
 
 current_load_target = None   # "A" or "B"
 current_slider_value = 0.0
+current_pitch_range = 0.08
 
 
 
-# -----------------------------
-# Control callbacks
-# -----------------------------
+def update_pitch_range_buttons(prefix, selected):
+    dpg.bind_item_theme(f"btn_8_{prefix}",  "theme_button_default")
+    dpg.bind_item_theme(f"btn_16_{prefix}", "theme_button_default")
+    dpg.bind_item_theme(f"btn_50_{prefix}", "theme_button_default")
+
+    if selected == 0.08:
+        dpg.bind_item_theme(f"btn_8_{prefix}", "theme_button_active")
+    elif selected == 0.16:
+        dpg.bind_item_theme(f"btn_16_{prefix}", "theme_button_active")
+    elif selected == 0.50:
+        dpg.bind_item_theme(f"btn_50_{prefix}", "theme_button_active")
+
+
 
 
 def update_pitch_display():
@@ -32,17 +43,50 @@ def on_pitch_slider(sender, app_data):
     update_pitch_display()
 
 def on_pitch_range(sender, app_data, user_data):
-    global current_slider_value
+    global current_pitch_range
+    current_pitch_range = user_data
+
     dual.set_pitch_range(user_data)
     dual.set_pitch_slider(current_slider_value)
+
+    update_pitch_range_buttons(user_data)
     update_pitch_display()
 
-def build_pitch_ui():
+
+
+def build_pitch_ui(prefix, deck):
+
+    slider_tag = f"pitch_slider_{prefix}"
+    pitch_tag  = f"pitch_label_{prefix}"
+    bpm_tag    = f"bpm_label_{prefix}"
+
+    def update_display():
+        pitch_percent = (deck._pitch - 1.0) * 100
+        dpg.set_value(pitch_tag, f"{pitch_percent:+.1f}%")
+
+        if hasattr(deck, "original_bpm"):
+            bpm = deck.original_bpm * deck._pitch
+            dpg.set_value(bpm_tag, f"{bpm:.2f} BPM")
+
+    def on_slider(sender, app_data):
+        deck.set_pitch_slider(float(app_data))
+        update_display()
+
+    def on_range(sender, app_data, user_data):
+        deck.set_pitch_range(user_data)
+
+        # Reaplicar el valor actual del slider
+        slider_value = dpg.get_value(f"pitch_slider_{prefix}")
+        deck.set_pitch_slider(slider_value)
+
+        update_pitch_range_buttons(prefix, user_data)
+        update_display()
+
+
     with dpg.group(horizontal=True):
 
-        # Pitch slider vertical
         dpg.add_slider_float(
-            tag="pitch_slider",
+            tag=slider_tag,
             label="Pitch",
             default_value=0.0,
             min_value=-1.0,
@@ -50,22 +94,26 @@ def build_pitch_ui():
             width=40,
             height=200,
             vertical=True,
-            callback=on_pitch_slider
+            callback=on_slider
         )
 
         with dpg.group():
             dpg.add_text("Pitch Range")
-            dpg.add_button(label="±8%",  width=60, callback=on_pitch_range, user_data=0.08)
-            dpg.add_button(label="±16%", width=60, callback=on_pitch_range, user_data=0.16)
-            dpg.add_button(label="±50%", width=60, callback=on_pitch_range, user_data=0.50)
+
+            dpg.add_button(label="±8%",  tag=f"btn_8_{prefix}",  width=60, callback=on_range, user_data=0.08)
+            dpg.add_button(label="±16%", tag=f"btn_16_{prefix}", width=60, callback=on_range, user_data=0.16)
+            dpg.add_button(label="±50%", tag=f"btn_50_{prefix}", width=60, callback=on_range, user_data=0.50)
 
             dpg.add_spacer(height=10)
-            dpg.add_text("Pitch:", color=(200, 200, 255))
-            dpg.add_text("+0.0%", tag="pitch_label")
+            dpg.add_text("Pitch:")
+            dpg.add_text("+0.0%", tag=pitch_tag)
 
             dpg.add_spacer(height=10)
-            dpg.add_text("BPM:", color=(200, 255, 200))
-            dpg.add_text("0.00 BPM", tag="bpm_label")
+            dpg.add_text("BPM:")
+            dpg.add_text("0.00 BPM", tag=bpm_tag)
+
+    update_pitch_range_buttons(prefix, 0.08)
+
 
 
 def load_track_a():
@@ -119,6 +167,19 @@ def file_dialog_callback(sender, app_data):
 
 def start_ui():
     dpg.create_context()
+    
+    with dpg.theme(tag="theme_button_default"):
+        with dpg.theme_component(dpg.mvButton):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (60, 60, 60))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (80, 80, 80))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
+
+    with dpg.theme(tag="theme_button_active"):
+        with dpg.theme_component(dpg.mvButton):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 120, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (30, 150, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 90, 200))
+
 
     with dpg.window(label="Dual Deck", width=600, height=600):
         
@@ -135,7 +196,9 @@ def start_ui():
         dpg.add_button(label="Play B", callback=play_b)
         dpg.add_button(label="Pause B", callback=pause_b)
         dpg.add_button(label="Stop B", callback=stop_b)
-        build_pitch_ui()
+        build_pitch_ui("A", dual.deck_a)
+        build_pitch_ui("B", dual.deck_b)
+
         dpg.add_text("Volume A")
         dpg.add_slider_float(
             label="",
@@ -159,25 +222,6 @@ def start_ui():
 
         dpg.add_spacer(height=20)
         
-        dpg.add_text("Pitch A")
-        dpg.add_slider_float(
-            label="",
-            default_value=1.0,
-            min_value=0.5,
-            max_value=2.0,
-            width=200,
-            callback=lambda s, a: dual.deck_a.set_pitch(a)
-        )
-
-        dpg.add_text("Pitch B")
-        dpg.add_slider_float(
-            label="",
-            default_value=1.0,
-            min_value=0.5,
-            max_value=2.0,
-            width=200,
-            callback=lambda s, a: dual.deck_b.set_pitch(a)
-        )
 
 
         dpg.add_text("Crossfader")
@@ -204,6 +248,7 @@ def start_ui():
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
 
     dpg.create_viewport(title="Dual Deck", width=600, height=600)
+
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.start_dearpygui()
