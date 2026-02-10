@@ -1,8 +1,10 @@
 import dearpygui.dearpygui as dpg
+
+from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
 
-# Global instance of the logic engine
-dual = DualDeck()
+dual = DualDeck(audio_engine_cls=AudioEngine)
+
 current_load_target = None   # "A" or "B"
 
 
@@ -12,21 +14,14 @@ current_load_target = None   # "A" or "B"
 
 def load_track_a():
     global current_load_target
-    
-    dual.deck_a.load("track_a.mp3")
-    print("Loaded A:", dual.deck_a.current_track)
-    
     current_load_target = "A"
     dpg.show_item("file_dialog_id")
 
 def load_track_b():
     global current_load_target
-    
-    dual.deck_b.load("track_b.mp3")
-    print("Loaded B:", dual.deck_b.current_track)
-    
     current_load_target = "B"
     dpg.show_item("file_dialog_id")
+
 
 def play_a():
     dual.deck_a.play()
@@ -35,6 +30,15 @@ def play_a():
 def play_b():
     dual.deck_b.play()
     print("Play B")
+    
+def pause_a():
+    dual.deck_a.pause()
+    print("Pause A")
+
+def pause_b():
+    dual.deck_b.pause()
+    print("Pause B")
+
 
 def stop_a():
     dual.deck_a.stop()
@@ -51,7 +55,6 @@ def crossfader_callback(sender, app_data):
 def file_dialog_callback(sender, app_data):
     global current_load_target
 
-    # app_data["file_path_name"] contains the complete path
     path = app_data["file_path_name"]
 
     if current_load_target == "A":
@@ -63,9 +66,7 @@ def file_dialog_callback(sender, app_data):
         print("Loaded B:", path)
         
     dpg.hide_item("file_dialog_id")
-
     current_load_target = None
-
 
 # -----------------------------
 # Building UI
@@ -79,6 +80,7 @@ def start_ui():
         dpg.add_text("Deck A")
         dpg.add_button(label="Load A", callback=load_track_a)
         dpg.add_button(label="Play A", callback=play_a)
+        dpg.add_button(label="Pause A", callback=pause_a)
         dpg.add_button(label="Stop A", callback=stop_a)
 
         dpg.add_spacer(height=20)
@@ -86,6 +88,7 @@ def start_ui():
         dpg.add_text("Deck B")
         dpg.add_button(label="Load B", callback=load_track_b)
         dpg.add_button(label="Play B", callback=play_b)
+        dpg.add_button(label="Pause B", callback=pause_b)
         dpg.add_button(label="Stop B", callback=stop_b)
 
         dpg.add_spacer(height=20)
@@ -108,7 +111,7 @@ def start_ui():
         width=600,
         height=400
     ):
-        dpg.add_file_extension(".*", color=(255, 255, 255, 255))
+       
         dpg.add_file_extension(".mp3", color=(0, 255, 0, 255))
         dpg.add_file_extension(".wav", color=(0, 200, 255, 255))
         

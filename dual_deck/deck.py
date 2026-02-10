@@ -1,3 +1,9 @@
+from dual_deck.audio_engine import AudioEngine
+
+
+
+
+
 class Deck:
     def __init__(self, audio_engine=None):
         self._audio_engine = audio_engine
@@ -19,15 +25,18 @@ class Deck:
         return self._is_paused
 
     def pause(self):
-        # Solo puedes pausar si estás reproduciendo
         if not self._is_playing:
-            return  # o raise, según tu test
+            print("Cannot pause: not playing")
+            return  
 
         self._is_playing = False
         self._is_paused = True
 
         if self._audio_engine:
             self._audio_engine.pause()
+
+        print(f"[{self._track_path}] Paused")
+
 
     def get_position(self):
         return self._position
@@ -39,12 +48,16 @@ class Deck:
         return self._pitch
 
     def stop(self):
+        if not self.is_loaded():
+            print("Cannot stop: no track loaded")
+            return
         self._is_playing = False
         self._is_paused = False
         self._position = 0
 
         if self._audio_engine:
             self._audio_engine.stop()
+
             
     def seek(self, position):
         self._position = position
@@ -71,6 +84,7 @@ class Deck:
 
     def play(self):
         if not self.is_loaded():
+            print(" Cannot play: no track loaded")
             return  
 
         self._is_playing = True
@@ -78,6 +92,7 @@ class Deck:
 
         if self._audio_engine:
             self._audio_engine.play()
+            print("Playing")
             
     def set_pitch(self, pitch):
         self._pitch = pitch
