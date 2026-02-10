@@ -25,31 +25,24 @@ def load_track_b():
 
 def play_a():
     dual.deck_a.play()
-    print("Play A")
-
+    
 def play_b():
     dual.deck_b.play()
-    print("Play B")
     
 def pause_a():
     dual.deck_a.pause()
-    print("Pause A")
 
 def pause_b():
     dual.deck_b.pause()
-    print("Pause B")
 
 def stop_a():
     dual.deck_a.stop()
-    print("Stop A")
 
 def stop_b():
     dual.deck_b.stop()
-    print("Stop B")
 
 def crossfader_callback(sender, app_data):
     dual.set_crossfader(app_data)
-    print("Crossfader:", app_data)
     
 def file_dialog_callback(sender, app_data):
     global current_load_target
@@ -58,11 +51,9 @@ def file_dialog_callback(sender, app_data):
 
     if current_load_target == "A":
         dual.deck_a.load(path)
-        print("Loaded A:", path)
 
     elif current_load_target == "B":
         dual.deck_b.load(path)
-        print("Loaded B:", path)
         
     dpg.hide_item("file_dialog_id")
     current_load_target = None
@@ -112,6 +103,27 @@ def start_ui():
 
 
         dpg.add_spacer(height=20)
+        
+        dpg.add_text("Pitch A")
+        dpg.add_slider_float(
+            label="",
+            default_value=1.0,
+            min_value=0.5,
+            max_value=2.0,
+            width=200,
+            callback=lambda s, a: dual.deck_a.set_pitch(a)
+        )
+
+        dpg.add_text("Pitch B")
+        dpg.add_slider_float(
+            label="",
+            default_value=1.0,
+            min_value=0.5,
+            max_value=2.0,
+            width=200,
+            callback=lambda s, a: dual.deck_b.set_pitch(a)
+        )
+
 
         dpg.add_text("Crossfader")
         dpg.add_slider_float(

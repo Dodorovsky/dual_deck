@@ -26,7 +26,6 @@ class Deck:
 
     def pause(self):
         if not self._is_playing:
-            print("Cannot pause: not playing")
             return  
 
         self._is_playing = False
@@ -34,8 +33,6 @@ class Deck:
 
         if self._audio_engine:
             self._audio_engine.pause()
-
-        print(f"[{self._track_path}] Paused")
 
     def get_position(self):
         return self._position
@@ -48,7 +45,6 @@ class Deck:
 
     def stop(self):
         if not self.is_loaded():
-            print("Cannot stop: no track loaded")
             return
         self._is_playing = False
         self._is_paused = False
@@ -82,7 +78,6 @@ class Deck:
 
     def play(self):
         if not self.is_loaded():
-            print(" Cannot play: no track loaded")
             return  
 
         self._is_playing = True
