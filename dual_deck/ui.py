@@ -111,6 +111,13 @@ def build_pitch_ui(prefix, deck):
             dpg.add_spacer(height=10)
             dpg.add_text("BPM:")
             dpg.add_text("0.00 BPM", tag=bpm_tag)
+            
+            dpg.add_spacer(height=10)
+            dpg.add_button(label="CUE", width=60, callback=lambda: deck.set_cue())
+            dpg.add_button(label="Play CUE", width=60, callback=lambda: deck.cue_play())
+            dpg.add_button(label="SYNC", width=60, callback=lambda: deck.sync_to(dual.deck_b if prefix=="A" else dual.deck_a))
+
+                        
 
     update_pitch_range_buttons(prefix, 0.08)
 
@@ -181,7 +188,7 @@ def start_ui():
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 90, 200))
 
 
-    with dpg.window(label="Dual Deck", width=600, height=600):
+    with dpg.window(label="Dual Deck", width=1300, height=800):
         
         dpg.add_text("Deck A")
         dpg.add_button(label="Load A", callback=load_track_a)
@@ -247,7 +254,7 @@ def start_ui():
         
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
 
-    dpg.create_viewport(title="Dual Deck", width=600, height=600)
+    dpg.create_viewport(title="Dual Deck", width=1300, height=800)
 
     dpg.setup_dearpygui()
     dpg.show_viewport()

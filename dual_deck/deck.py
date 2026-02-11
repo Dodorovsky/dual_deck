@@ -13,6 +13,7 @@ class Deck:
         self._position = 0
         self._volume = 1.0
         self._pitch = 1.0
+        self.cue_position = 0
         
 
 
@@ -36,11 +37,9 @@ class Deck:
         if self._audio_engine:
             self._audio_engine.pause()
             
-
     def resume(self):
         if self._audio_engine:
             self._audio_engine.resume()
-
 
     def get_position(self):
         return self._position
@@ -103,11 +102,30 @@ class Deck:
     def set_pitch_range(self, r):
         if self._audio_engine:
             self._audio_engine.set_pitch_range(r)
-
-            
+        
     def set_pitch_slider(self, value):
         if self._audio_engine:
             self._audio_engine.set_pitch_slider(value)
+
+    def set_cue(self):
+        self.cue_position = self._audio_engine._byte_position
+        
+    def goto_cue(self):
+        self._audio_engine._byte_position = self.cue_position
+
+    def cue_play(self):
+        self.goto_cue()
+        self.play()
+
+    def cue_stop(self):
+        self.stop()
+        self.goto_cue()
+
+    def sync_to(self, other_deck):
+        if hasattr(other_deck, "original_bpm") and hasattr(self, "original_bpm"):
+            ratio = other_deck.original_bpm / self.original_bpm
+            self.set_pitch_slider((ratio - 1.0) / self.pitch_range)
+
 
 
 class DualDeck:

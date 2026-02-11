@@ -22,6 +22,10 @@ class AudioEngine:
         self._stream = None
         self._thread = None
         self._stop_flag = False
+        self.keylock = False
+        self._playhead = 0.0  # posición en frames, no en bytes
+
+
 
     def load(self, file_path):
         self._audio = AudioSegment.from_file(file_path)
@@ -82,8 +86,6 @@ class AudioEngine:
         self._thread = threading.Thread(target=self._play_loop)
         self._thread.start()
 
-
-
     def stop(self):
         self._stop_flag = True
         self.state = "stopped"
@@ -99,8 +101,6 @@ class AudioEngine:
         # slider_value ∈ [-1.0, +1.0]
         self._pitch = 1.0 + (slider_value * self.pitch_range)
 
-
-
     def set_volume(self, vol):
         self._volume = max(0.0, min(1.0, vol))
 
@@ -109,7 +109,6 @@ class AudioEngine:
         bytes_per_frame = self._sample_width * self._channels
 
         while not self._stop_flag and self._byte_position < len(self._raw_data):
-            # read original chunk
             start = self._byte_position
             end = start + chunk_frames * bytes_per_frame
             chunk = self._raw_data[start:end]
@@ -117,11 +116,11 @@ class AudioEngine:
             if len(chunk) == 0:
                 break
 
-            # apply volume
+            # volumen
             if self._volume != 1.0:
                 chunk = audioop.mul(chunk, self._sample_width, self._volume)
 
-            # apply pitch with resampling
+            # pitch clásico
             if self._pitch != 1.0:
                 new_rate = int(self._frame_rate * self._pitch)
                 chunk, _ = audioop.ratecv(
@@ -133,12 +132,19 @@ class AudioEngine:
                     None
                 )
 
-            # send to stream
-            self._stream.write(chunk)
+            try:
+                self._stream.write(chunk)
+            except Exception:
+                break
 
-            # advance normal position
             self._byte_position += chunk_frames * bytes_per_frame
 
         self._stream.stop_stream()
         self._stream.close()
         self.state = "stopped"
+
+
+    def set_keylock(self, enabled: bool):
+        self.keylock = enabled
+
+
