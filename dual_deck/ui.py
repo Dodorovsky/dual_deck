@@ -112,6 +112,9 @@ def build_pitch_ui(prefix, deck):
             dpg.add_text("BPM:")
             dpg.add_text("0.00 BPM", tag=bpm_tag)
             
+           
+
+            
             dpg.add_spacer(height=10)
             dpg.add_button(label="CUE", width=60, callback=lambda: deck.set_cue())
             dpg.add_button(label="Play CUE", width=60, callback=lambda: deck.cue_play())
@@ -165,7 +168,8 @@ def file_dialog_callback(sender, app_data):
     elif current_load_target == "B":
         dual.deck_b.load(path)
         
-    dpg.hide_item("file_dialog_id")
+    if dpg.does_item_exist("file_dialog_id"):
+        dpg.hide_item("file_dialog_id")
     current_load_target = None
 
 # -----------------------------
@@ -195,6 +199,9 @@ def start_ui():
         dpg.add_button(label="Play A", callback=play_a)
         dpg.add_button(label="Pause A", callback=pause_a)
         dpg.add_button(label="Stop A", callback=stop_a)
+        dpg.add_text("BPM:")
+        dpg.add_text("0.00 BPM", tag="A_bpm_label")
+
 
         dpg.add_spacer(height=20)
 
@@ -203,6 +210,9 @@ def start_ui():
         dpg.add_button(label="Play B", callback=play_b)
         dpg.add_button(label="Pause B", callback=pause_b)
         dpg.add_button(label="Stop B", callback=stop_b)
+        dpg.add_text("BPM:")
+        dpg.add_text("0.00 BPM", tag="B_bpm_label")
+
         build_pitch_ui("A", dual.deck_a)
         build_pitch_ui("B", dual.deck_b)
 

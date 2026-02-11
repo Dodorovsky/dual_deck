@@ -1,11 +1,13 @@
 from dual_deck.audio_engine import AudioEngine
+import dearpygui.dearpygui as dpg
 
 
 
 
 
 class Deck:
-    def __init__(self, audio_engine=None):
+    def __init__(self, prefix, audio_engine=None):
+        self.prefix = prefix
         self._audio_engine = audio_engine
         self._track_path = None
         self._is_playing = False
@@ -14,6 +16,11 @@ class Deck:
         self._volume = 1.0
         self._pitch = 1.0
         self.cue_position = 0
+        self.original_bpm = None
+        self.current_bpm = None
+        self.pitch_range = 0.08   
+
+
         
 
 
@@ -82,6 +89,10 @@ class Deck:
         self._position = 0
         if self._audio_engine:
             self._audio_engine.load(track_path)
+            self.original_bpm = self._audio_engine.bpm
+            self.current_bpm = self.original_bpm
+            dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+
 
     def play(self):
         if not self.is_loaded():
@@ -100,12 +111,17 @@ class Deck:
             self._audio_engine.set_pitch(pitch)
             
     def set_pitch_range(self, r):
+        self.pitch_range = r
         if self._audio_engine:
             self._audio_engine.set_pitch_range(r)
         
-    def set_pitch_slider(self, value):
-        if self._audio_engine:
-            self._audio_engine.set_pitch_slider(value)
+    def set_pitch_slider(self, slider_value):
+        self._pitch_slider_value = slider_value
+        self._audio_engine.set_pitch_slider(slider_value)
+
+        if self.original_bpm:
+            self.current_bpm = self.original_bpm * self._audio_engine._pitch
+            dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
 
     def set_cue(self):
         self.cue_position = self._audio_engine._byte_position
@@ -122,16 +138,23 @@ class Deck:
         self.goto_cue()
 
     def sync_to(self, other_deck):
-        if hasattr(other_deck, "original_bpm") and hasattr(self, "original_bpm"):
-            ratio = other_deck.original_bpm / self.original_bpm
-            self.set_pitch_slider((ratio - 1.0) / self.pitch_range)
+        if not self.original_bpm or not other_deck.current_bpm:
+            return
 
+        target_bpm = other_deck.current_bpm
+        ratio = target_bpm / self.original_bpm
+
+        slider_value = (ratio - 1.0) / self.pitch_range
+        self.set_pitch_slider(slider_value)
+
+        dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
 
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
-        self.deck_a = Deck(audio_engine_cls() if audio_engine_cls else None)
-        self.deck_b = Deck(audio_engine_cls() if audio_engine_cls else None)
+        self.deck_a = Deck("A", audio_engine_cls() if audio_engine_cls else None)
+        self.deck_b = Deck("B", audio_engine_cls() if audio_engine_cls else None)
+
         self.crossfader = 0.5  # 0 = A, 1 = B
         self.active_deck = "A"
 

@@ -1,7 +1,9 @@
 import threading
 import audioop
 import pyaudio
+import librosa
 from pydub import AudioSegment
+
 
 class AudioEngine:
     def __init__(self):
@@ -24,6 +26,7 @@ class AudioEngine:
         self._stop_flag = False
         self.keylock = False
         self._playhead = 0.0  # posición en frames, no en bytes
+        
 
 
 
@@ -37,6 +40,19 @@ class AudioEngine:
 
         self._byte_position = 0
         self.state = "stopped"
+        
+        import librosa
+
+
+        # Cargar audio en mono para análisis
+        y, sr = librosa.load(file_path, sr=self._frame_rate, mono=True)
+
+        # Detectar BPM
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+        # Guardar BPM original
+        self.bpm = float(tempo)
+
 
     def play(self):
         if self._audio is None:
