@@ -123,6 +123,7 @@ def load_track_a():
     current_load_target = "A"
     dpg.show_item("file_dialog_id")
 
+
 def load_track_b():
     global current_load_target
     current_load_target = "B"
@@ -156,13 +157,35 @@ def file_dialog_callback(sender, app_data):
 
     if current_load_target == "A":
         dual.deck_a.load(path)
+        draw_waveform(dual.deck_a.waveform, "global_wave_A")
 
     elif current_load_target == "B":
         dual.deck_b.load(path)
+        draw_waveform(dual.deck_b.waveform, "global_wave_B")
         
     if dpg.does_item_exist("file_dialog_id"):
         dpg.hide_item("file_dialog_id")
     current_load_target = None
+
+def draw_waveform(waveform, tag, width=1200, height=120):
+    # Borrar lo que hubiera antes
+    dpg.delete_item(tag, children_only=True)
+
+    mid = height // 2
+    step = width / len(waveform)
+
+    for i in range(len(waveform) - 1):
+        x1 = i * step
+        y1 = mid - waveform[i] * mid
+        x2 = (i + 1) * step
+        y2 = mid - waveform[i + 1] * mid
+
+        dpg.draw_line((x1, y1), (x2, y2),
+                      color=(0, 200, 255),
+                      thickness=1,
+                      parent=tag)
+
+
 
 # -----------------------------
 # Building UI
@@ -188,9 +211,20 @@ def start_ui():
         main_font = dpg.add_font("fonts/DejaVuSans.ttf",14)
 
     dpg.bind_font(main_font)
-    
+
     with dpg.window(label="Dual Deck", width=1300, height=800):
         dpg.add_spacer(height=20)
+        
+                # Onda global del Deck A
+        dpg.add_text("Deck A Waveform")
+        with dpg.drawlist(width=1200, height=120, tag="global_wave_A"):
+            pass
+
+        # Onda global del Deck B
+        dpg.add_text("Deck B Waveform")
+        with dpg.drawlist(width=1200, height=120, tag="global_wave_B"):
+            pass
+        
         with dpg.group(horizontal=True):
             dpg.bind_font(main_font)
 
@@ -201,6 +235,8 @@ def start_ui():
             dpg.add_button(label="stop", callback=stop_a)   # Stop
             #dpg.add_text("BPM:")
             dpg.add_text("0.00 BPM", tag="A_bpm_label")
+            
+            
             
             build_pitch_ui("A", dual.deck_a)
 

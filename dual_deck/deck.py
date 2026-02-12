@@ -1,6 +1,6 @@
 from dual_deck.audio_engine import AudioEngine
 import dearpygui.dearpygui as dpg
-
+from dual_deck.waveform import load_waveform
 
 
 
@@ -92,7 +92,7 @@ class Deck:
             self.original_bpm = self._audio_engine.bpm
             self.current_bpm = self.original_bpm
             dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
-
+        self.waveform, _ = load_waveform(track_path)
 
     def play(self):
         if not self.is_loaded():
