@@ -2,6 +2,7 @@ import threading
 import audioop
 import pyaudio
 import librosa
+import soundfile as sf
 from pydub import AudioSegment
 
 
@@ -15,7 +16,7 @@ class AudioEngine:
 
         self._volume = 1.0
         self._pitch = 1.0
-        self.pitch_range = 0.08   # ±8% por defecto
+        self.pitch_range = 0.08   # ±8% by default
 
         self._byte_position = 0
         self.state = "stopped"
@@ -25,12 +26,11 @@ class AudioEngine:
         self._thread = None
         self._stop_flag = False
         self.keylock = False
-        self._playhead = 0.0  # posición en frames, no en bytes
-        
-
+        self._playhead = 0.0  # position in frames, not bytes
 
 
     def load(self, file_path):
+        # Load full audio for playback (pydub)
         self._audio = AudioSegment.from_file(file_path)
 
         self._frame_rate = self._audio.frame_rate
@@ -40,18 +40,25 @@ class AudioEngine:
 
         self._byte_position = 0
         self.state = "stopped"
-        
-        import librosa
 
+        # --- FAST LOADING FOR BPM ANALYSIS ---
+        # Read only 60 seconds
+        with sf.SoundFile(file_path) as f:
+            sr = f.samplerate
+            frames = sr * 60
+            y = f.read(frames, dtype='float32')
 
-        # Cargar audio en mono para análisis
-        y, sr = librosa.load(file_path, sr=self._frame_rate, mono=True)
+        # Convert to mono if stereo
+        if y.ndim > 1:
+            y = y.mean(axis=1)
 
-        # Detectar BPM
+        # Detect BPM
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
 
-        # Guardar BPM original
-        self.bpm = float(tempo)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        self.original_bpm = float(tempo)
+        self.bpm = float(tempo)  
+
 
 
     def play(self):
@@ -90,7 +97,7 @@ class AudioEngine:
         self._stop_flag = False
         self.state = "playing"
 
-        # reabrir stream
+        # reopen stream
         self._stream = self._pyaudio.open(
             format=self._pyaudio.get_format_from_width(self._sample_width),
             channels=self._channels,
@@ -98,7 +105,7 @@ class AudioEngine:
             output=True
         )
 
-        # lanzar hilo de reproducción
+        #  launch play thread
         self._thread = threading.Thread(target=self._play_loop)
         self._thread.start()
 
@@ -110,7 +117,7 @@ class AudioEngine:
         self._pitch = max(0.5, min(2.0, pitch))
         
     def set_pitch_range(self, r):
-        # r debe ser 0.08, 0.16 o 0.50
+        # r it must be 0.08, 0.16 or 0.50
         self.pitch_range = r
         
     def set_pitch_slider(self, slider_value):
@@ -136,7 +143,7 @@ class AudioEngine:
             if self._volume != 1.0:
                 chunk = audioop.mul(chunk, self._sample_width, self._volume)
 
-            # pitch clásico
+            # classic pitch
             if self._pitch != 1.0:
                 new_rate = int(self._frame_rate * self._pitch)
                 chunk, _ = audioop.ratecv(
