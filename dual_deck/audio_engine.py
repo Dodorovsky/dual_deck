@@ -177,9 +177,6 @@ class AudioEngine:
 
             self._vu = vu_level
 
-
-                
-
             # calcular frames realmente reproducidos en este chunk
             frames_played = len(chunk) // bytes_per_frame
             self._playhead += frames_played

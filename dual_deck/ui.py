@@ -191,7 +191,9 @@ def draw_waveform(waveform, tag, width=1200, height=120):
                       thickness=1,
                       parent=tag)
 def update_local_waves():
-    # Deck A
+    # -------------------------
+    # ONDAS LOCALES
+    # -------------------------
     if dual.deck_a.waveform is not None:
         draw_local_waveform(
             dual.deck_a.waveform,
@@ -200,7 +202,6 @@ def update_local_waves():
             tag="local_wave_A"
         )
 
-    # Deck B
     if dual.deck_b.waveform is not None:
         draw_local_waveform(
             dual.deck_b.waveform,
@@ -209,11 +210,25 @@ def update_local_waves():
             tag="local_wave_B"
         )
 
-    #  Repete
+    # -------------------------
+    # VÚMETROS A y B
+    # -------------------------
+    vuA = dual.deck_a._audio_engine._vu
+    vuB = dual.deck_b._audio_engine._vu
+
+    draw_vu("vu_A", vuA)
+    draw_vu("vu_B", vuB)
+
+    # -------------------------
+    # VÚMETRO MASTER ESTÉREO
+    # (simulación: A = canal L, B = canal R)
+    # -------------------------
+    draw_vu_stereo("vu_master", vuA, vuB)
+
+    # -------------------------
+    # REPROGRAMAR TIMER
+    # -------------------------
     dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
-    
-    draw_vu("vu_A", dual.deck_a._audio_engine._vu)
-    draw_vu("vu_B", dual.deck_b._audio_engine._vu)
 
 def draw_vu(tag, level, width=20, height=120):
     dpg.delete_item(tag, children_only=True)
@@ -231,9 +246,35 @@ def draw_vu(tag, level, width=20, height=120):
 
     dpg.draw_rectangle((0, height - bar_h), (width, height),
                        fill=color, parent=tag)
-
-
     
+def draw_vu_stereo(tag, left_level, right_level, width=40, height=120):
+    dpg.delete_item(tag, children_only=True)
+
+    bar_width = width // 2
+
+    # LEFT
+    left_h = int(left_level * height)
+    left_color = (0,255,0) if left_level < 0.6 else (255,255,0) if left_level < 0.85 else (255,0,0)
+
+    dpg.draw_rectangle(
+        (0, height - left_h),
+        (bar_width, height),
+        fill=left_color,
+        parent=tag
+    )
+
+    # RIGHT
+    right_h = int(right_level * height)
+    right_color = (0,255,0) if right_level < 0.6 else (255,255,0) if right_level < 0.85 else (255,0,0)
+
+    dpg.draw_rectangle(
+        (bar_width, height - right_h),
+        (width, height),
+        fill=right_color,
+        parent=tag
+    )
+
+ 
 # -----------------------------
 # Building UI
 # -----------------------------
@@ -273,11 +314,11 @@ def start_ui():
         # -----------------------------
         # GLOBAL WAVEFORMS
         # -----------------------------
-        dpg.add_text("Deck A Waveform")
+        #dpg.add_text("Deck A Waveform")
         with dpg.drawlist(width=1200, height=120, tag="global_wave_A"):
             pass
 
-        dpg.add_text("Deck B Waveform")
+        #dpg.add_text("Deck B Waveform")
         with dpg.drawlist(width=1200, height=120, tag="global_wave_B"):
             pass
         
@@ -325,6 +366,7 @@ def start_ui():
 
             dpg.add_spacer(width=20)
 
+
             # -----------------------------
             # CROSSFADER
             # -----------------------------
@@ -340,9 +382,8 @@ def start_ui():
             dpg.add_spacer(width=20)
             
             dpg.add_drawlist(tag="vu_A", width=20, height=120)
+            dpg.add_drawlist(tag="vu_master", width=40, height=120)
             dpg.add_drawlist(tag="vu_B", width=20, height=120)
-
-
 
             # -----------------------------
             # DECK B
