@@ -19,6 +19,7 @@ class Deck:
         self.original_bpm = None
         self.current_bpm = None
         self.pitch_range = 0.08   
+        self.waveform = None
 
 
         
@@ -86,13 +87,34 @@ class Deck:
         self._track_path = track_path
         self._is_playing = False
         self._is_paused = False
-        self._position = 0
+        self._position = 0  # posición en frames
+
+        # Cargar audio en el motor
         if self._audio_engine:
             self._audio_engine.load(track_path)
             self.original_bpm = self._audio_engine.bpm
             self.current_bpm = self.original_bpm
             dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+
+        # Cargar waveform
         self.waveform, _ = load_waveform(track_path)
+        
+    @property
+    def position(self):
+        eng = self._audio_engine
+        if eng is None or self.waveform is None or eng._raw_data is None:
+            return 0
+
+        bytes_per_frame = eng._sample_width * eng._channels
+        total_frames = len(eng._raw_data) // bytes_per_frame
+        if total_frames == 0:
+            return 0
+
+        wf_index = int(len(self.waveform) * eng._playhead / total_frames)
+        return max(0, min(wf_index, len(self.waveform) - 1))
+
+
+
 
     def play(self):
         if not self.is_loaded():

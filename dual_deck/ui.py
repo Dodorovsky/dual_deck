@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 
 from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
+from dual_deck.waveform import draw_local_waveform
 
 dual = DualDeck(audio_engine_cls=AudioEngine)
 
@@ -158,17 +159,22 @@ def file_dialog_callback(sender, app_data):
     if current_load_target == "A":
         dual.deck_a.load(path)
         draw_waveform(dual.deck_a.waveform, "global_wave_A")
+        draw_local_waveform(dual.deck_a.waveform, 0, 300, "local_wave_A")
 
     elif current_load_target == "B":
         dual.deck_b.load(path)
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
-        
-    if dpg.does_item_exist("file_dialog_id"):
-        dpg.hide_item("file_dialog_id")
+        draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
+
+    # RESET TIMER TO PICK UP THE NEW WAVEFORM
+    dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
+
+    dpg.hide_item("file_dialog_id")
     current_load_target = None
 
+
 def draw_waveform(waveform, tag, width=1200, height=120):
-    # Borrar lo que hubiera antes
+    # Delete what was before
     dpg.delete_item(tag, children_only=True)
 
     mid = height // 2
@@ -184,17 +190,60 @@ def draw_waveform(waveform, tag, width=1200, height=120):
                       color=(0, 200, 255),
                       thickness=1,
                       parent=tag)
+def update_local_waves():
+    # Deck A
+    if dual.deck_a.waveform is not None:
+        draw_local_waveform(
+            dual.deck_a.waveform,
+            dual.deck_a.position,
+            window_size=300,
+            tag="local_wave_A"
+        )
+
+    # Deck B
+    if dual.deck_b.waveform is not None:
+        draw_local_waveform(
+            dual.deck_b.waveform,
+            dual.deck_b.position,
+            window_size=300,
+            tag="local_wave_B"
+        )
+
+    #  Repete
+    dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
+    
+    draw_vu("vu_A", dual.deck_a._audio_engine._vu)
+    draw_vu("vu_B", dual.deck_b._audio_engine._vu)
+
+def draw_vu(tag, level, width=20, height=120):
+    dpg.delete_item(tag, children_only=True)
+
+    # altura de la barra
+    bar_h = int(level * height)
+
+    # color estilo DJ (verde → amarillo → rojo)
+    if level < 0.6:
+        color = (0, 255, 0)
+    elif level < 0.85:
+        color = (255, 255, 0)
+    else:
+        color = (255, 0, 0)
+
+    dpg.draw_rectangle((0, height - bar_h), (width, height),
+                       fill=color, parent=tag)
 
 
-
+    
 # -----------------------------
 # Building UI
 # -----------------------------
 
 def start_ui():
     dpg.create_context()
-
     
+    # -----------------------------
+    # THEMES
+    # -----------------------------
     with dpg.theme(tag="theme_button_default"):
         with dpg.theme_component(dpg.mvButton):
             dpg.add_theme_color(dpg.mvThemeCol_Button, (60, 60, 60))
@@ -206,85 +255,122 @@ def start_ui():
             dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 120, 255))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (30, 150, 255))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 90, 200))
-
+    
+    # -----------------------------
+    # FONT
+    # -----------------------------
     with dpg.font_registry():
-        main_font = dpg.add_font("fonts/DejaVuSans.ttf",14)
+        main_font = dpg.add_font("fonts/DejaVuSans.ttf", 14)
 
     dpg.bind_font(main_font)
-
+     
+    # -----------------------------
+    # MAIN WINDOW
+    # -----------------------------
     with dpg.window(label="Dual Deck", width=1300, height=800):
         dpg.add_spacer(height=20)
         
-                # Onda global del Deck A
+        # -----------------------------
+        # GLOBAL WAVEFORMS
+        # -----------------------------
         dpg.add_text("Deck A Waveform")
         with dpg.drawlist(width=1200, height=120, tag="global_wave_A"):
             pass
 
-        # Onda global del Deck B
         dpg.add_text("Deck B Waveform")
         with dpg.drawlist(width=1200, height=120, tag="global_wave_B"):
             pass
         
-        with dpg.group(horizontal=True):
-            dpg.bind_font(main_font)
+        dpg.add_spacer(height=10)
 
-            #dpg.add_text("Deck A")
-            dpg.add_button(label="Load A", callback=load_track_a)
-            dpg.add_button(label="play", callback=play_a)   # Play
-            dpg.add_button(label="pause", callback=pause_a) # Pause
-            dpg.add_button(label="stop", callback=stop_a)   # Stop
-            #dpg.add_text("BPM:")
-            dpg.add_text("0.00 BPM", tag="A_bpm_label")
-            
-            
-            
-            build_pitch_ui("A", dual.deck_a)
+        # -----------------------------
+        # LOCAL WAVES
+        # -----------------------------
+        dpg.add_text("Deck A (Local Wave)")
+        with dpg.drawlist(width=600, height=120, tag="local_wave_A"):
+            pass
+
+        dpg.add_text("Deck B (Local Wave)")
+        with dpg.drawlist(width=600, height=120, tag="local_wave_B"):
+            pass
+
+        dpg.add_spacer(height=20)
+
+        # -----------------------------
+        # DECK CONTROLS (A y B)
+        # -----------------------------
+        with dpg.group(horizontal=True):
+
+            # -----------------------------
+            # DECK A
+            # -----------------------------
+            with dpg.group():
+                dpg.add_button(label="Load A", callback=load_track_a)
+                dpg.add_button(label="play", callback=play_a)
+                dpg.add_button(label="pause", callback=pause_a)
+                dpg.add_button(label="stop", callback=stop_a)
+                dpg.add_text("0.00 BPM", tag="A_bpm_label")
+
+                build_pitch_ui("A", dual.deck_a)
+
+                dpg.add_slider_float(
+                    label="",
+                    default_value=1.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    height=200,
+                    vertical=True,
+                    callback=lambda s, a: dual.deck_a.set_volume(a)
+                )
 
             dpg.add_spacer(width=20)
-            
-            dpg.add_slider_float(
-                label="",
-                default_value=1.0,
-                min_value=0.0,
-                max_value=1.0,
-                height=200, vertical=True,
-                callback=lambda s, a: dual.deck_a.set_volume(a))
-            
-            #Crossfader
+
+            # -----------------------------
+            # CROSSFADER
+            # -----------------------------
             dpg.add_slider_float(
                 label="",
                 default_value=0.5,
                 min_value=0.0,
                 max_value=1.0,
-                callback=crossfader_callback,
-                width=200
+                width=200,
+                callback=crossfader_callback
             )
-            
-            dpg.add_slider_float(
-                label="",
-                default_value=1.0,
-                min_value=0.0,
-                max_value=1.0,
-                height=200, vertical=True,
-                callback=lambda s, a: dual.deck_b.set_volume(a)
-        )
-            
-            
-            dpg.add_spacer(width=20)
 
-            #dpg.add_text("Deck B")
-            dpg.add_button(label="Load B", callback=load_track_b)
-            dpg.add_button(label="play", callback=play_b)
-            dpg.add_button(label="pause", callback=pause_b)
-            dpg.add_button(label="stop", callback=stop_b)
-            #dpg.add_text("BPM:")
-            dpg.add_text("0.00 BPM", tag="B_bpm_label")
-            
             dpg.add_spacer(width=20)
-            build_pitch_ui("B", dual.deck_b)
+            
+            dpg.add_drawlist(tag="vu_A", width=20, height=120)
+            dpg.add_drawlist(tag="vu_B", width=20, height=120)
+
+
+
+            # -----------------------------
+            # DECK B
+            # -----------------------------
+            with dpg.group():
+                dpg.add_button(label="Load B", callback=load_track_b)
+                dpg.add_button(label="play", callback=play_b)
+                dpg.add_button(label="pause", callback=pause_b)
+                dpg.add_button(label="stop", callback=stop_b)
+                dpg.add_text("0.00 BPM", tag="B_bpm_label")
+
+                build_pitch_ui("B", dual.deck_b)
+
+                dpg.add_slider_float(
+                    label="",
+                    default_value=1.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    height=200,
+                    vertical=True,
+                    callback=lambda s, a: dual.deck_b.set_volume(a)
+                )
 
         dpg.add_spacer(height=20)
-        
+
+    # -----------------------------
+    # FILE DIALOG
+    # -----------------------------
     with dpg.file_dialog(
         directory_selector=False,
         show=False,
@@ -295,11 +381,17 @@ def start_ui():
     ):
         dpg.add_file_extension(".mp3", color=(0, 255, 0, 255))
         dpg.add_file_extension(".wav", color=(0, 200, 255, 255))
-        
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
 
-    dpg.create_viewport(title="Dual Deck", width=1300, height=800)
+    # -----------------------------
+    # START LOCAL WAVE UPDATES
+    # -----------------------------
+    update_local_waves()
 
+    # -----------------------------
+    # START DPG
+    # -----------------------------
+    dpg.create_viewport(title="Dual Deck", width=1300, height=800)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.start_dearpygui()

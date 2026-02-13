@@ -4,6 +4,7 @@ import pyaudio
 import librosa
 import soundfile as sf
 from pydub import AudioSegment
+import numpy as np
 
 
 class AudioEngine:
@@ -27,10 +28,22 @@ class AudioEngine:
         self._stop_flag = False
         self.keylock = False
         self._playhead = 0.0  # position in frames, not bytes
+        self._vu = 0.0
+
 
 
     def load(self, file_path):
-        # Load full audio for playback (pydub)
+
+        # Si hay un stream anterior, cerrarlo
+        if self._stream is not None:
+            try:
+                self._stream.stop_stream()
+                self._stream.close()
+            except:
+                pass
+            self._stream = None
+
+        # Cargar audio
         self._audio = AudioSegment.from_file(file_path)
 
         self._frame_rate = self._audio.frame_rate
@@ -38,27 +51,23 @@ class AudioEngine:
         self._sample_width = self._audio.sample_width
         self._raw_data = self._audio.raw_data
 
+        # Resetear posición
         self._byte_position = 0
+        self._playhead = 0.0
         self.state = "stopped"
 
-        # --- FAST LOADING FOR BPM ANALYSIS ---
-        # Read only 60 seconds
+        # BPM
         with sf.SoundFile(file_path) as f:
             sr = f.samplerate
             frames = sr * 60
             y = f.read(frames, dtype='float32')
 
-        # Convert to mono if stereo
         if y.ndim > 1:
             y = y.mean(axis=1)
 
-        # Detect BPM
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
         self.original_bpm = float(tempo)
-        self.bpm = float(tempo)  
-
+        self.bpm = float(tempo)
 
 
     def play(self):
@@ -78,7 +87,7 @@ class AudioEngine:
             rate=self._frame_rate,
             output=True
         )
-
+        
         # throw thread
         self._thread = threading.Thread(target=self._play_loop)
         self._thread.start()
@@ -108,6 +117,9 @@ class AudioEngine:
         #  launch play thread
         self._thread = threading.Thread(target=self._play_loop)
         self._thread.start()
+
+
+
 
     def stop(self):
         self._stop_flag = True
@@ -154,17 +166,36 @@ class AudioEngine:
                     new_rate,
                     None
                 )
+                
+
+            # convertir chunk a numpy para medir RMS
+            samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
+            rms = np.sqrt(np.mean(samples**2))
+
+            # normalizar a 0–1
+            vu_level = min(rms / 32768.0, 1.0)
+
+            self._vu = vu_level
+
+
+                
+
+            # calcular frames realmente reproducidos en este chunk
+            frames_played = len(chunk) // bytes_per_frame
+            self._playhead += frames_played
 
             try:
                 self._stream.write(chunk)
             except Exception:
                 break
 
+            # avanzar en el buffer original según los frames solicitados, no según len(chunk)
             self._byte_position += chunk_frames * bytes_per_frame
 
         self._stream.stop_stream()
         self._stream.close()
         self.state = "stopped"
+
 
 
     def set_keylock(self, enabled: bool):
