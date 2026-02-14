@@ -69,7 +69,6 @@ class AudioEngine:
         self.original_bpm = float(tempo)
         self.bpm = float(tempo)
 
-
     def play(self):
         if self._audio is None:
             return
@@ -118,9 +117,6 @@ class AudioEngine:
         self._thread = threading.Thread(target=self._play_loop)
         self._thread.start()
 
-
-
-
     def stop(self):
         self._stop_flag = True
         self.state = "stopped"
@@ -157,7 +153,7 @@ class AudioEngine:
 
             # classic pitch
             if self._pitch != 1.0:
-                new_rate = int(self._frame_rate * self._pitch)
+                new_rate = int(self._frame_rate / self._pitch)
                 chunk, _ = audioop.ratecv(
                     chunk,
                     self._sample_width,
@@ -186,13 +182,13 @@ class AudioEngine:
             except Exception:
                 break
 
-            # avanzar en el buffer original según los frames solicitados, no según len(chunk)
+            # avanzar en el archivo original (NO en el chunk convertido)
             self._byte_position += chunk_frames * bytes_per_frame
+
 
         self._stream.stop_stream()
         self._stream.close()
         self.state = "stopped"
-
 
 
     def set_keylock(self, enabled: bool):

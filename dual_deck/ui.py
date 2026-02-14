@@ -57,15 +57,14 @@ def build_pitch_ui(prefix, deck):
     bpm_tag    = f"bpm_label_{prefix}"
 
     def update_display():
-        #pitch_percent = (deck._pitch - 1.0) * 100
-        #dpg.set_value(pitch_tag, f"{pitch_percent:+.1f}%")
+        if not dpg.does_item_exist(bpm_tag):
+            return  # el label aún no existe, evitar error
 
         if getattr(deck, "original_bpm", None) is not None:
             bpm = deck.original_bpm * deck._pitch
             dpg.set_value(bpm_tag, f"{bpm:.2f} BPM")
         else:
             dpg.set_value(bpm_tag, "— BPM")
-
 
     def on_slider(sender, app_data):
         deck.set_pitch_slider(float(app_data))
@@ -80,7 +79,6 @@ def build_pitch_ui(prefix, deck):
 
         update_pitch_range_buttons(prefix, user_data)
         update_display()
-
 
     with dpg.group():
         sync=dpg.add_button(label="SYNC", width=40, callback=lambda: deck.sync_to(dual.deck_b if prefix=="A" else dual.deck_a))
@@ -114,7 +112,7 @@ def build_pitch_ui(prefix, deck):
 
                 #dpg.add_text("BPM:")
                 #dpg.add_text("0.00 BPM", tag=bpm_tag)
-                
+                dpg.add_spacer(height=1)
                 dpg.add_button(label="CUE", width=60, callback=lambda: deck.set_cue())
                 dpg.add_button(label="Play CUE", width=60, callback=lambda: deck.cue_play())
                 dpg.add_spacer(width=20)
@@ -202,6 +200,9 @@ def draw_waveform(waveform, tag, width=1120, height=60):
                       color=(0, 200, 255),
                       thickness=1,
                       parent=tag)
+        
+def get_master_level(deck_a, deck_b):
+    return min(1.0, deck_a._vu + deck_b._vu)
 def update_local_waves():
     # -------------------------
     # ONDAS LOCALES
@@ -235,56 +236,107 @@ def update_local_waves():
     # VÚMETRO MASTER ESTÉREO
     # (simulación: A = canal L, B = canal R)
     # -------------------------
-    draw_vu_stereo("vu_master", vuA, vuB)
+    
+
+
+    vuA = dual.deck_a._audio_engine._vu
+    vuB = dual.deck_b._audio_engine._vu
+
+    master = min(1.0, vuA + vuB)
+
+    draw_vu_stereo("vu_master", master, master)
+
+
+
+
+
 
     # -------------------------
     # REPROGRAMAR TIMER
     # -------------------------
     dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
 
-def draw_vu(tag, level, width=20, height=120):
-    dpg.delete_item(tag, children_only=True)
+def draw_vu(parent, level, segments=24):
+    dpg.delete_item(parent, children_only=True)
 
-    # altura de la barra
-    bar_h = int(level * height)
+    width = 22
+    height = 120
+    seg_height = height / segments
 
-    # color estilo DJ (verde → amarillo → rojo)
-    if level < 0.6:
-        color = (0, 255, 0)
-    elif level < 0.85:
-        color = (255, 255, 0)
-    else:
-        color = (255, 0, 0)
+    for i in range(segments):
+        y1 = height - (i + 1) * seg_height
+        y2 = height - i * seg_height
 
-    dpg.draw_rectangle((0, height - bar_h), (width, height),
-                       fill=color, parent=tag)
+        # nivel actual en segmentos
+        active_segments = int(level * segments)
+
+        # color según zona
+        if i < segments * 0.6:
+            color = (0, 200, 0)      # verde
+        elif i < segments * 0.85:
+            color = (255, 200, 0)    # amarillo
+        else:
+            color = (255, 0, 0)      # rojo
+
+        fill = color if i < active_segments else (40, 40, 40)
+
+        dpg.draw_rectangle(
+            (0, y1),
+            (width, y2),
+            fill=fill,
+            color=(0, 0, 0),
+            parent=parent
+        )
+
     
-def draw_vu_stereo(tag, left_level, right_level, width=40, height=120):
+def draw_vu_stereo(tag, left_level, right_level, width=40, height=120, segments=24):
     dpg.delete_item(tag, children_only=True)
 
     bar_width = width // 2
+    seg_height = height / segments
 
-    # LEFT
-    left_h = int(left_level * height)
-    left_color = (0,255,0) if left_level < 0.6 else (255,255,0) if left_level < 0.85 else (255,0,0)
+    # LEFT BAR (Deck A)
+    active_left = int(left_level * segments)
 
-    dpg.draw_rectangle(
-        (0, height - left_h),
-        (bar_width, height),
-        fill=left_color,
-        parent=tag
-    )
+    for i in range(segments):
+        y1 = height - (i + 1) * seg_height
+        y2 = height - i * seg_height
 
-    # RIGHT
-    right_h = int(right_level * height)
-    right_color = (0,255,0) if right_level < 0.6 else (255,255,0) if right_level < 0.85 else (255,0,0)
+        if i < active_left:
+            color = (0,255,0) if i < segments * 0.6 else (255,255,0) if i < segments * 0.85 else (255,0,0)
+        else:
+            color = (40,40,40)
 
-    dpg.draw_rectangle(
-        (bar_width, height - right_h),
-        (width, height),
-        fill=right_color,
-        parent=tag
-    )
+        dpg.draw_rectangle(
+            (0, y1),
+            (bar_width, y2),
+            fill=color,
+            color=(0,0,0),
+            parent=tag
+        )
+
+    # RIGHT BAR (Deck B)
+    active_right = int(right_level * segments)
+
+    for i in range(segments):
+        y1 = height - (i + 1) * seg_height
+        y2 = height - i * seg_height
+
+        if i < active_right:
+            color = (0,255,0) if i < segments * 0.6 else (255,255,0) if i < segments * 0.85 else (255,0,0)
+        else:
+            color = (40,40,40)
+
+        dpg.draw_rectangle(
+            (bar_width, y1),
+            (width, y2),
+            fill=color,
+            color=(0,0,0),
+            parent=tag
+        )
+
+
+
 
  
 # -----------------------------

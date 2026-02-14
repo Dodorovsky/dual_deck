@@ -20,6 +20,7 @@ class Deck:
         self.current_bpm = None
         self.pitch_range = 0.08   
         self.waveform = None
+        
 
 
         
@@ -129,8 +130,15 @@ class Deck:
             
     def set_pitch(self, pitch):
         self._pitch = pitch
+
         if self._audio_engine:
             self._audio_engine.set_pitch(pitch)
+
+        if self.original_bpm:
+            self.current_bpm = self.original_bpm * pitch
+            dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+
+
             
     def set_pitch_range(self, r):
         self.pitch_range = r
@@ -166,10 +174,9 @@ class Deck:
         target_bpm = other_deck.current_bpm
         ratio = target_bpm / self.original_bpm
 
-        slider_value = (ratio - 1.0) / self.pitch_range
-        self.set_pitch_slider(slider_value)
+        # aplicar pitch REAL al motor
+        self.set_pitch(ratio)
 
-        dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
 
 
 class DualDeck:
@@ -179,6 +186,9 @@ class DualDeck:
 
         self.crossfader = 0.5  # 0 = A, 1 = B
         self.active_deck = "A"
+        self.master_volume = 1.0   # 100%
+        
+
 
 
     def set_crossfader(self, value):
