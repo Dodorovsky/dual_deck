@@ -53,12 +53,12 @@ def on_pitch_range(sender, app_data, user_data):
 def build_pitch_ui(prefix, deck):
 
     slider_tag = f"pitch_slider_{prefix}"
-    pitch_tag  = f"pitch_label_{prefix}"
+    #  = f"pitch_label_{prefix}"
     bpm_tag    = f"bpm_label_{prefix}"
 
     def update_display():
-        pitch_percent = (deck._pitch - 1.0) * 100
-        dpg.set_value(pitch_tag, f"{pitch_percent:+.1f}%")
+        #pitch_percent = (deck._pitch - 1.0) * 100
+        #dpg.set_value(pitch_tag, f"{pitch_percent:+.1f}%")
 
         if getattr(deck, "original_bpm", None) is not None:
             bpm = deck.original_bpm * deck._pitch
@@ -82,39 +82,42 @@ def build_pitch_ui(prefix, deck):
         update_display()
 
 
-    with dpg.group(horizontal=True):
-    
-        # Pitch
-        dpg.add_slider_float(
-            tag=slider_tag,
-            #label="Pitch",
-            default_value=0.0,
-            min_value=-1.0,
-            max_value=1.0,
-            width=40,
-            height=200,
-            vertical=True,
-            callback=on_slider
-        )
+    with dpg.group():
+        sync=dpg.add_button(label="SYNC", width=40, callback=lambda: deck.sync_to(dual.deck_b if prefix=="A" else dual.deck_a))
+        dpg.bind_item_theme(sync,  "theme_sync_default")
+        with dpg.group(horizontal=True):
+            # Pitch
+            dpg.add_slider_float(
+                tag=slider_tag,
+                #label="Pitch",
+                default_value=0.0,
+                min_value=-1.0,
+                max_value=1.0,
+                width=40,
+                height=120,
+                vertical=True,
+                callback=on_slider
+            )
 
-        with dpg.group():
-            dpg.add_spacer(height=10)
+            with dpg.group():
+                
 
-            dpg.add_button(label="±8%",  tag=f"btn_8_{prefix}",  width=60, callback=on_range, user_data=0.08)
-            dpg.add_button(label="±16%", tag=f"btn_16_{prefix}", width=60, callback=on_range, user_data=0.16)
-            dpg.add_button(label="±50%", tag=f"btn_50_{prefix}", width=60, callback=on_range, user_data=0.50)
+                dpg.add_button(label="±8%",  tag=f"btn_8_{prefix}",  width=60, callback=on_range, user_data=0.08)
+                dpg.add_button(label="±16%", tag=f"btn_16_{prefix}", width=60, callback=on_range, user_data=0.16)
+                dpg.add_button(label="±50%", tag=f"btn_50_{prefix}", width=60, callback=on_range, user_data=0.50)
 
-            #dpg.add_spacer(height=10)
-            dpg.add_text("Pitch:")
-            dpg.add_text("+0.0%", tag=pitch_tag) 
-
-            dpg.add_text("BPM:")
-            dpg.add_text("0.00 BPM", tag=bpm_tag)
             
-            dpg.add_button(label="CUE", width=60, callback=lambda: deck.set_cue())
-            dpg.add_button(label="Play CUE", width=60, callback=lambda: deck.cue_play())
-            dpg.add_button(label="SYNC", width=60, callback=lambda: deck.sync_to(dual.deck_b if prefix=="A" else dual.deck_a))
-            dpg.add_spacer(width=20)
+                
+                #dpg.add_spacer(height=10)
+                #dpg.add_text("Pitch:")
+                #dpg.add_text("+0.0%", tag=pitch_tag) 
+
+                #dpg.add_text("BPM:")
+                #dpg.add_text("0.00 BPM", tag=bpm_tag)
+                
+                dpg.add_button(label="CUE", width=60, callback=lambda: deck.set_cue())
+                dpg.add_button(label="Play CUE", width=60, callback=lambda: deck.cue_play())
+                dpg.add_spacer(width=20)
                         
 
     update_pitch_range_buttons(prefix, 0.08)
@@ -173,9 +176,18 @@ def file_dialog_callback(sender, app_data):
     current_load_target = None
 
 
-def draw_waveform(waveform, tag, width=1200, height=120):
+def draw_waveform(waveform, tag, width=1120, height=60):
     # Delete what was before
     dpg.delete_item(tag, children_only=True)
+    dpg.draw_rectangle(
+    (0, 0),
+    (width, height),
+    fill=(0, 0, 0),
+    color=(40, 40, 40),   # borde gris oscuro
+    thickness=1,
+    parent=tag
+)
+
 
     mid = height // 2
     step = width / len(waveform)
@@ -296,6 +308,12 @@ def start_ui():
             dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 120, 255))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (30, 150, 255))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 90, 200))
+            
+    with dpg.theme(tag="theme_sync_default"):
+        with dpg.theme_component(dpg.mvButton):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (105, 83, 54))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (80, 80, 80))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
     
     # -----------------------------
     # FONT
@@ -308,34 +326,93 @@ def start_ui():
     # -----------------------------
     # MAIN WINDOW
     # -----------------------------
-    with dpg.window(label="Dual Deck", width=1300, height=800):
+    with dpg.window(label="Dual Deck", width=1150, height=500):
         dpg.add_spacer(height=20)
         
         # -----------------------------
         # GLOBAL WAVEFORMS
         # -----------------------------
         #dpg.add_text("Deck A Waveform")
-        with dpg.drawlist(width=1200, height=120, tag="global_wave_A"):
+        with dpg.drawlist( width=1120, height=60, tag="global_wave_A"):
+            dpg.draw_rectangle((0, 0), (1120, 60), fill=(0, 0, 0), color=(0,0,0))
             pass
 
         #dpg.add_text("Deck B Waveform")
-        with dpg.drawlist(width=1200, height=120, tag="global_wave_B"):
+        with dpg.drawlist(width=1120, height=60, tag="global_wave_B"):
+            dpg.draw_rectangle((0, 0), (1120, 60), fill=(0, 0, 0), color=(0,0,0))
             pass
         
-        dpg.add_spacer(height=10)
-
+        
+        dpg.add_spacer(height=20)
         # -----------------------------
         # LOCAL WAVES
         # -----------------------------
-        dpg.add_text("Deck A (Local Wave)")
-        with dpg.drawlist(width=600, height=120, tag="local_wave_A"):
-            pass
+        with dpg.group(horizontal=True):
+            dpg.add_spacer(height=20)
+            with dpg.group():
+                dpg.add_spacer(height=50) 
+            # --- Onda local A ---
+                with dpg.drawlist(width=300, height=60, tag="local_wave_A"):
+                    dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
+                    pass
 
-        dpg.add_text("Deck B (Local Wave)")
-        with dpg.drawlist(width=600, height=120, tag="local_wave_B"):
-            pass
+            #dpg.add_spacer(width=10)
 
-        dpg.add_spacer(height=20)
+            # --- Pitch A ---
+            build_pitch_ui("A", dual.deck_a)
+
+            dpg.add_spacer(width=20)
+
+            # ============================================
+            # BLOQUE DE MIXER PEGADO ABAJO
+            # ============================================
+
+            # Volumen A (pegado abajo)
+            with dpg.group():
+                
+                dpg.add_spacer(height=20)   # empuja hacia abajo
+                dpg.add_slider_float(
+                    label="",
+                    default_value=1.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    height=120,
+                    vertical=True,
+                    callback=lambda s, a: dual.deck_a.set_volume(a)
+                )
+
+            dpg.add_spacer(width=15)
+
+            # VU A / MASTER / VU B (pegados abajo)
+            with dpg.group():
+                dpg.add_spacer(height=20)
+                with dpg.group(horizontal=True):
+                    dpg.add_drawlist(tag="vu_A", width=20, height=120)
+                    dpg.add_drawlist(tag="vu_master", width=40, height=120)
+                    dpg.add_drawlist(tag="vu_B", width=20, height=120)
+
+            dpg.add_spacer(width=15)
+
+            # Volumen B (pegado abajo)
+            with dpg.group():
+                dpg.add_spacer(height=20)
+                dpg.add_slider_float(
+                    label="",
+                    default_value=1.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    height=120,
+                    vertical=True,
+                    callback=lambda s, a: dual.deck_b.set_volume(a)
+                )
+                
+            dpg.add_spacer(width=20)
+            with dpg.group():
+                dpg.add_spacer(height=50) 
+                with dpg.drawlist(width=300, height=60, tag="local_wave_B"):
+                    dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
+                    pass
+            build_pitch_ui("B", dual.deck_b)
 
         # -----------------------------
         # DECK CONTROLS (A y B)
@@ -345,27 +422,16 @@ def start_ui():
             # -----------------------------
             # DECK A
             # -----------------------------
-            with dpg.group():
+            with dpg.group(horizontal=True):
+                dpg.add_spacer(width=50)
                 dpg.add_button(label="Load A", callback=load_track_a)
                 dpg.add_button(label="play", callback=play_a)
                 dpg.add_button(label="pause", callback=pause_a)
                 dpg.add_button(label="stop", callback=stop_a)
-                dpg.add_text("0.00 BPM", tag="A_bpm_label")
-
-                build_pitch_ui("A", dual.deck_a)
-
-                dpg.add_slider_float(
-                    label="",
-                    default_value=1.0,
-                    min_value=0.0,
-                    max_value=1.0,
-                    height=200,
-                    vertical=True,
-                    callback=lambda s, a: dual.deck_a.set_volume(a)
-                )
-
-            dpg.add_spacer(width=20)
-
+                dpg.add_spacer(width=40)
+                dpg.add_text("  0.00 BPM  ", tag="A_bpm_label")
+                
+            dpg.add_spacer(width=73)
 
             # -----------------------------
             # CROSSFADER
@@ -375,38 +441,24 @@ def start_ui():
                 default_value=0.5,
                 min_value=0.0,
                 max_value=1.0,
-                width=200,
+                width=198,
                 callback=crossfader_callback
             )
 
-            dpg.add_spacer(width=20)
-            
-            dpg.add_drawlist(tag="vu_A", width=20, height=120)
-            dpg.add_drawlist(tag="vu_master", width=40, height=120)
-            dpg.add_drawlist(tag="vu_B", width=20, height=120)
+            dpg.add_spacer(width=60)
 
             # -----------------------------
             # DECK B
             # -----------------------------
-            with dpg.group():
+            with dpg.group(horizontal=True):
                 dpg.add_button(label="Load B", callback=load_track_b)
                 dpg.add_button(label="play", callback=play_b)
                 dpg.add_button(label="pause", callback=pause_b)
                 dpg.add_button(label="stop", callback=stop_b)
+                dpg.add_spacer(width=60)
                 dpg.add_text("0.00 BPM", tag="B_bpm_label")
 
-                build_pitch_ui("B", dual.deck_b)
-
-                dpg.add_slider_float(
-                    label="",
-                    default_value=1.0,
-                    min_value=0.0,
-                    max_value=1.0,
-                    height=200,
-                    vertical=True,
-                    callback=lambda s, a: dual.deck_b.set_volume(a)
-                )
-
+                
         dpg.add_spacer(height=20)
 
     # -----------------------------
@@ -432,7 +484,7 @@ def start_ui():
     # -----------------------------
     # START DPG
     # -----------------------------
-    dpg.create_viewport(title="Dual Deck", width=1300, height=800)
+    dpg.create_viewport(title="Dual Deck", width=1150, height=500)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.start_dearpygui()
