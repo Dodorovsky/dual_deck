@@ -151,7 +151,7 @@ def stop_b():
 
 def crossfader_callback(sender, app_data):
     dual.set_crossfader(app_data)
-    
+    dpg.set_value("cross_value", f"{app_data:.2f}")
 def file_dialog_callback(sender, app_data):
     global current_load_target
 
@@ -334,10 +334,6 @@ def draw_vu_stereo(tag, left_level, right_level, width=40, height=120, segments=
             color=(0,0,0),
             parent=tag
         )
-
-
-
-
  
 # -----------------------------
 # Building UI
@@ -363,10 +359,57 @@ def start_ui():
             
     with dpg.theme(tag="theme_sync_default"):
         with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, (105, 83, 54))
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (69, 55, 32))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (80, 80, 80))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
-    
+            
+    with dpg.theme(tag="theme_controls_default"):
+        with dpg.theme_component(dpg.mvButton):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (69, 55, 32))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (80, 80, 80))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
+            
+    with dpg.theme() as fader_theme:
+        with dpg.theme_component(dpg.mvSliderFloat):
+            
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 240, 8))
+            
+            # Fondo del track
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (20, 20, 20))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (20, 20, 20))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (20, 20, 20))
+
+            # Color del fader (grab)
+            
+            dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (200, 200, 200))
+            dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (255, 255, 255))
+
+            # Borde fino
+            dpg.add_theme_color(dpg.mvThemeCol_Border, (80, 80, 80))
+            dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
+
+            # Padding para hacerlo más fino
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 2)
+            
+    with dpg.theme() as pioneer_fader:
+        with dpg.theme_component(dpg.mvSliderFloat):
+            # Fondo del track
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (20, 20, 20))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (30, 30, 30))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (40, 40, 40))
+
+            # Fader cap (el “botón”)
+            dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (200, 200, 200))
+            dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (255, 255, 255))
+
+            # Borde fino estilo Pioneer
+            dpg.add_theme_color(dpg.mvThemeCol_Border, (80, 80, 80))
+            dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
+
+            # Padding para hacerlo más fino
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 2)
+
+
     # -----------------------------
     # FONT
     # -----------------------------
@@ -424,14 +467,18 @@ def start_ui():
                 
                 dpg.add_spacer(height=20)   # empuja hacia abajo
                 dpg.add_slider_float(
+                    tag="vol_A",
                     label="",
                     default_value=1.0,
                     min_value=0.0,
                     max_value=1.0,
                     height=120,
                     vertical=True,
+                    format="",
                     callback=lambda s, a: dual.deck_a.set_volume(a)
                 )
+            dpg.bind_item_theme("vol_A", pioneer_fader)
+
 
             dpg.add_spacer(width=15)
 
@@ -449,14 +496,18 @@ def start_ui():
             with dpg.group():
                 dpg.add_spacer(height=20)
                 dpg.add_slider_float(
+                    tag="vol_B",
                     label="",
                     default_value=1.0,
                     min_value=0.0,
                     max_value=1.0,
                     height=120,
                     vertical=True,
+                    format="",
                     callback=lambda s, a: dual.deck_b.set_volume(a)
                 )
+                dpg.bind_item_theme("vol_B", pioneer_fader)
+
                 
             dpg.add_spacer(width=20)
             with dpg.group():
@@ -476,10 +527,14 @@ def start_ui():
             # -----------------------------
             with dpg.group(horizontal=True):
                 dpg.add_spacer(width=50)
-                dpg.add_button(label="Load A", callback=load_track_a)
-                dpg.add_button(label="play", callback=play_a)
-                dpg.add_button(label="pause", callback=pause_a)
-                dpg.add_button(label="stop", callback=stop_a)
+                load_a = dpg.add_button(label="Load A", callback=load_track_a)
+                dpg.bind_item_theme(load_a,  "theme_controls_default")
+                play_aa = dpg.add_button(label="play", callback=play_a)
+                dpg.bind_item_theme(play_aa,  "theme_controls_default")
+                pause_aa = dpg.add_button(label="pause", callback=pause_a)
+                dpg.bind_item_theme(pause_aa,  "theme_controls_default")
+                stop_aa = dpg.add_button(label="stop", callback=stop_a)
+                dpg.bind_item_theme(stop_aa,  "theme_controls_default")
                 dpg.add_spacer(width=40)
                 dpg.add_text("  0.00 BPM  ", tag="A_bpm_label")
                 
@@ -489,29 +544,38 @@ def start_ui():
             # CROSSFADER
             # -----------------------------
             dpg.add_slider_float(
+                tag="crossfader",
                 label="",
                 default_value=0.5,
                 min_value=0.0,
                 max_value=1.0,
                 width=198,
-                callback=crossfader_callback
+                format="",
+                callback=crossfader_callback,
+                
             )
+            dpg.bind_item_theme("crossfader", fader_theme)
 
-            dpg.add_spacer(width=60)
+            dpg.add_spacer(width=70)
 
             # -----------------------------
             # DECK B
             # -----------------------------
             with dpg.group(horizontal=True):
-                dpg.add_button(label="Load B", callback=load_track_b)
-                dpg.add_button(label="play", callback=play_b)
-                dpg.add_button(label="pause", callback=pause_b)
-                dpg.add_button(label="stop", callback=stop_b)
-                dpg.add_spacer(width=60)
+                load_bb = dpg.add_button(label="Load B", callback=load_track_b)
+                dpg.bind_item_theme(load_bb,  "theme_controls_default")
+                play_bb = dpg.add_button(label="play", callback=play_b)
+                dpg.bind_item_theme(play_bb,  "theme_controls_default")
+                pause_bb = dpg.add_button(label="pause", callback=pause_b)
+                dpg.bind_item_theme(pause_bb,  "theme_controls_default")
+                stop_bb = dpg.add_button(label="stop", callback=stop_b)
+                dpg.bind_item_theme(stop_bb,  "theme_controls_default")
+                dpg.add_spacer(width=50)
                 dpg.add_text("0.00 BPM", tag="B_bpm_label")
 
-                
-        dpg.add_spacer(height=20)
+        with dpg.group(horizontal=True):
+            dpg.add_spacer(width=540)
+            dpg.add_text("0.50", tag="cross_value")
 
     # -----------------------------
     # FILE DIALOG
