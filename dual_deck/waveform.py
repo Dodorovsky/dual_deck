@@ -24,6 +24,24 @@ def load_waveform(path, samples=2000):
 
     return waveform, audio.frame_rate
 
+def generate_waveform(samples, target_size=2000):
+    """
+    Generate a simplified waveform from raw samples (numpy array).
+    Used during analysis, BEFORE saving to disk.
+    """
+
+    # Normalize to [-1, 1]
+    max_val = np.max(np.abs(samples))
+    if max_val > 0:
+        samples = samples / max_val
+
+    # Reduce number of samples
+    factor = max(1, len(samples) // target_size)
+    waveform = samples[::factor]
+
+    return waveform
+
+
 def draw_local_waveform(waveform, position, window_size, tag, width=400, height=60):
     dpg.delete_item(tag, children_only=True)
     dpg.draw_rectangle(

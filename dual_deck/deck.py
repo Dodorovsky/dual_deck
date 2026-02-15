@@ -1,6 +1,11 @@
 from dual_deck.audio_engine import AudioEngine
 import dearpygui.dearpygui as dpg
 from dual_deck.waveform import load_waveform
+import numpy as np
+from .analysis import analyze_track
+from .library import get_all_tracks
+
+
 
 class Deck:
     def __init__(self, prefix, audio_engine=None):
@@ -17,11 +22,6 @@ class Deck:
         self.current_bpm = None
         self.pitch_range = 0.08   
         self.waveform = None
-        
-
-
-        
-
 
     # --- Initial state ---
     def is_loaded(self):
@@ -80,23 +80,58 @@ class Deck:
     @property
     def current_track(self):
         return self._track_path
+    
+    def load(self, path):
+        self.load_track(path)
 
-    def load(self, track_path):
-        self._track_path = track_path
-        self._is_playing = False
-        self._is_paused = False
-        self._position = 0 
+    def load_track(self, path):
+        self._track_path = path
+        # 1. Search the library
+        tracks = get_all_tracks()
+        track_data = next((t for t in tracks if t[4] == path), None)
 
-        # Load audio into the engine
-        if self._audio_engine:
-            self._audio_engine.load(track_path)
-            self.original_bpm = self._audio_engine.bpm
-            self.current_bpm = self.original_bpm
-            dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+        if track_data is None:
+            print("[deck] Track not in library. Analyzing...")
+            analysis = analyze_track(path)
 
-        # Load waveform
-        self.waveform, _ = load_waveform(track_path) 
-        
+            self.bpm = analysis["bpm"]
+            self.duration = analysis["duration"]
+            self.waveform_path = analysis["waveform_path"]
+
+            # waveform from analysis
+            self.waveform = analysis["waveform"]
+
+        else:
+            print("[deck] Track found in library.")
+            _, title, bpm, duration, waveform_path = track_data
+
+            self.bpm = bpm
+            self.duration = duration
+            self.waveform_path = waveform_path
+            
+            self.original_bpm = self.bpm
+            self.current_bpm = self.bpm
+
+
+            # load waveform from disk
+            self.waveform = np.load(waveform_path)
+
+        # 2. Load audio into the engine
+        self._audio_engine.load(path)
+
+        print("[deck] Track loaded successfully.")
+    
+    def _update_ui(self):
+        # update internal position
+        self._position = self.position
+
+        # update local wave
+        try:
+            dpg.set_value(f"{self.prefix}_local_wave", self._position)
+        except:
+            pass
+
+
     @property
     def position(self):
         eng = self._audio_engine
@@ -121,6 +156,9 @@ class Deck:
         if self._audio_engine:
             self._audio_engine.play()
             print("Playing")
+            
+        dpg.set_frame_callback(self._update_ui)
+
             
     def set_pitch(self, pitch):
         self._pitch = pitch
@@ -170,6 +208,8 @@ class Deck:
         self.set_pitch(ratio)
 
 
+
+
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
         self.deck_a = Deck("A", audio_engine_cls() if audio_engine_cls else None)
@@ -205,6 +245,10 @@ class DualDeck:
 
     def get_pitch(self):
         return self._active_deck()._pitch
+
+    def update(self):
+        self.deck_a._position = self.deck_a.position
+        self.deck_b._position = self.deck_b.position
 
 
 

@@ -3,8 +3,11 @@ import os
 import numpy as np
 
 from .waveform import generate_waveform
+
 from .save_waveform import save_waveform
 from .library import add_track
+
+
 
 
 def analyze_track(path):
@@ -61,5 +64,7 @@ def analyze_track(path):
         "duration": duration,
         "waveform_path": waveform_path,
         "sample_rate": sr,
-        "samples": samples
+        "samples": samples,
+        "waveform": waveform_array
     }
+

@@ -49,31 +49,23 @@ class AudioEngine:
         self._channels = self._audio.channels
         self._sample_width = self._audio.sample_width
         self._raw_data = self._audio.raw_data
+        print("[audio] loaded", file_path, "len(raw_data) =", len(self._raw_data))
 
         # Reset position
         self._byte_position = 0
         self._playhead = 0.0
         self.state = "stopped"
 
-        # BPM
-        with sf.SoundFile(file_path) as f:
-            sr = f.samplerate
-            frames = sr * 60
-            y = f.read(frames, dtype='float32')
-
-        if y.ndim > 1:
-            y = y.mean(axis=1)
-
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-        self.original_bpm = float(tempo)
-        self.bpm = float(tempo)
 
     def play(self):
         if self._audio is None:
+            print("[audio] play() called but _audio is None")
             return
 
         if self.state == "playing":
+            print("[audio] play() called but already playing")
             return
+        print("[audio] play() starting")
 
         self.state = "playing"
         self._stop_flag = False
@@ -135,13 +127,20 @@ class AudioEngine:
         self._volume = max(0.0, min(1.0, vol))
 
     def _play_loop(self):
+        
         chunk_frames = 1024
         bytes_per_frame = self._sample_width * self._channels
 
         while not self._stop_flag and self._byte_position < len(self._raw_data):
+            print("[audio] _play_loop started")
+
             start = self._byte_position
             end = start + chunk_frames * bytes_per_frame
-            chunk = self._raw_data[start:end]
+            print("[audio] loop, byte_position:", self._byte_position)
+
+            # chunk original del archivo
+            original_chunk = self._raw_data[start:end]
+            chunk = original_chunk
 
             if len(chunk) == 0:
                 break
@@ -150,7 +149,7 @@ class AudioEngine:
             if self._volume != 1.0:
                 chunk = audioop.mul(chunk, self._sample_width, self._volume)
 
-            # classic pitch
+            # pitch
             if self._pitch != 1.0:
                 new_rate = int(self._frame_rate / self._pitch)
                 chunk, _ = audioop.ratecv(
@@ -161,27 +160,29 @@ class AudioEngine:
                     new_rate,
                     None
                 )
-                
-            # convert chunk to numpy to measure RMS
+            print("[audio] playhead:", self._playhead)
+
+            # VU meter
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
+            self._vu = min(rms / 32768.0, 1.0)
 
-            # normalize to 0–1
-            vu_level = min(rms / 32768.0, 1.0)
-
-            self._vu = vu_level
-
-            # calculate frames actually played in this chunk
-            frames_played = len(chunk) // bytes_per_frame
-            self._playhead += frames_played
-
+            # reproducir
             try:
                 self._stream.write(chunk)
-            except Exception:
-                break
+            except Exception as e:
+                print("[audio] ERROR EN stream.write:", e)
+                raise
 
-            # advance to the original file (NOT the converted chunk)
-            self._byte_position += chunk_frames * bytes_per_frame
+
+
+            # avanzar playhead
+            frames_played = len(original_chunk) // bytes_per_frame
+            self._playhead += frames_played
+            print("[audio] playhead:", self._playhead)
+
+            # avanzar byte_position
+            self._byte_position += len(original_chunk)
 
 
         self._stream.stop_stream()

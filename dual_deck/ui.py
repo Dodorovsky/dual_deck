@@ -132,7 +132,9 @@ def load_track_b():
     dpg.show_item("file_dialog_id")
 
 def play_a():
+    print("[UI] play_a() called")
     dual.deck_a.play()
+
     
 def play_b():
     dual.deck_b.play()

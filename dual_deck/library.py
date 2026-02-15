@@ -1,6 +1,9 @@
 import sqlite3
 import os
 from datetime import datetime
+import os
+print("[library] DB path:", os.path.abspath("library.db"))
+
 
 DB_PATH = "library.db"
 
@@ -23,7 +26,6 @@ def init_db():
 
     conn.commit()
     conn.close()
-
 
 def add_track(path, title, bpm, duration, waveform_path):
     """Insert a track into the library."""
