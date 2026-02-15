@@ -29,9 +29,7 @@ def update_pitch_display():
 
     dpg.set_value("pitch_label", f"{pitch_percent:+.1f}%")
 
-    if hasattr(dual, "original_bpm"):
-        bpm_actual = dual.original_bpm * dual._pitch
-        dpg.set_value("bpm_label", f"{bpm_actual:.2f} BPM")
+
 
 def on_pitch_slider(sender, app_data):
     global current_slider_value
@@ -60,11 +58,6 @@ def build_pitch_ui(prefix, deck):
         if not dpg.does_item_exist(bpm_tag):
             return  # el label aún no existe, evitar error
 
-        if getattr(deck, "original_bpm", None) is not None:
-            bpm = deck.original_bpm * deck._pitch
-            dpg.set_value(bpm_tag, f"{bpm:.2f} BPM")
-        else:
-            dpg.set_value(bpm_tag, "— BPM")
 
     def on_slider(sender, app_data):
         deck.set_pitch_slider(float(app_data))

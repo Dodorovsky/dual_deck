@@ -192,4 +192,3 @@ class AudioEngine:
     def set_keylock(self, enabled: bool):
         self.keylock = enabled
 
-

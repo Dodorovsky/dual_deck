@@ -93,8 +93,17 @@ class Deck:
         if track_data is None:
             print("[deck] Track not in library. Analyzing...")
             analysis = analyze_track(path)
+            self.bpm = analysis["bpm"]
+            print("[DEBUG] analysis =", analysis)
 
             self.bpm = analysis["bpm"]
+            self.original_bpm = self.bpm
+            self.current_bpm = self.bpm
+            try:
+                dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+            except:
+                pass
+            
             self.duration = analysis["duration"]
             self.waveform_path = analysis["waveform_path"]
 
@@ -249,6 +258,5 @@ class DualDeck:
     def update(self):
         self.deck_a._position = self.deck_a.position
         self.deck_b._position = self.deck_b.position
-
 
 
