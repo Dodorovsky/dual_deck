@@ -90,7 +90,9 @@ class Deck:
         tracks = get_all_tracks()
         track_data = next((t for t in tracks if t[4] == path), None)
 
-        if track_data is None:
+        force_reanalyze = True
+        if force_reanalyze or track_data is None:
+
             print("[deck] Track not in library. Analyzing...")
             analysis = analyze_track(path)
             self.bpm = analysis["bpm"]
