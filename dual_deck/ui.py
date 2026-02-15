@@ -3,7 +3,7 @@ from pathlib import Path
 from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
 from dual_deck.waveform import draw_local_waveform
-from dual_deck.library import get_all_tracks
+from dual_deck.library import get_all_tracks, delete_track_from_library
 print(get_all_tracks())
 
 dual = DualDeck(audio_engine_cls=AudioEngine)
@@ -369,18 +369,21 @@ def load_from_library(deck_prefix):
     if deck_prefix == "A":
         dual.deck_a.load_track(path)
 
-       
         dpg.set_value("deck_a_title", title)
         draw_waveform(dual.deck_a.waveform, "global_wave_A")
         draw_local_waveform(dual.deck_a.waveform, 0, 300, "local_wave_A")
 
+        dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
+
     else:
         dual.deck_b.load_track(path)
 
-       
         dpg.set_value("deck_b_title", title)
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
         draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
+
+        dpg.set_value("B_bpm_label", f"{dual.deck_b.bpm:.2f} BPM")
+
 
    
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)

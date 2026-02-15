@@ -86,51 +86,53 @@ class Deck:
 
     def load_track(self, path):
         self._track_path = path
-        # 1. Search the library
+
         tracks = get_all_tracks()
-        track_data = next((t for t in tracks if t[4] == path), None)
+        track_data = next((t for t in tracks if t[1] == path), None)
 
-        force_reanalyze = True
+        force_reanalyze = False
+
+        # -----------------------------------------
+        # 1. ANALIZAR SI NO ESTÁ EN LA LIBRERÍA
+        # -----------------------------------------
         if force_reanalyze or track_data is None:
-
             print("[deck] Track not in library. Analyzing...")
+
             analysis = analyze_track(path)
-            self.bpm = analysis["bpm"]
-            print("[DEBUG] analysis =", analysis)
 
             self.bpm = analysis["bpm"]
             self.original_bpm = self.bpm
             self.current_bpm = self.bpm
-            try:
-                dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
-            except:
-                pass
-            
+
             self.duration = analysis["duration"]
             self.waveform_path = analysis["waveform_path"]
-
-            # waveform from analysis
             self.waveform = analysis["waveform"]
 
+        # -----------------------------------------
+        # 2. CARGAR DESDE LA LIBRERÍA
+        # -----------------------------------------
         else:
             print("[deck] Track found in library.")
-            _, title, bpm, duration, waveform_path = track_data
+
+            id_, path, title, bpm, duration, waveform_path = track_data
 
             self.bpm = bpm
+            self.original_bpm = bpm
+            self.current_bpm = bpm
+
             self.duration = duration
             self.waveform_path = waveform_path
-            
-            self.original_bpm = self.bpm
-            self.current_bpm = self.bpm
 
-
-            # load waveform from disk
+            # waveform guardada en disco
             self.waveform = np.load(waveform_path)
 
-        # 2. Load audio into the engine
+        # -----------------------------------------
+        # 3. CARGAR AUDIO EN EL MOTOR
+        # -----------------------------------------
         self._audio_engine.load(path)
 
         print("[deck] Track loaded successfully.")
+
     
     def _update_ui(self):
         # update internal position

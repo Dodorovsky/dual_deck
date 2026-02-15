@@ -70,3 +70,14 @@ def get_track_by_id(track_id):
 
     conn.close()
     return row
+
+def delete_track_from_library(path):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM tracks WHERE path = ?", (path,))
+
+    conn.commit()
+    conn.close()
+
+    print(f"[library] Deleted track: {path}")
