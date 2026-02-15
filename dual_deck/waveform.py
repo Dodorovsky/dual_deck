@@ -4,21 +4,21 @@ import dearpygui.dearpygui as dpg
 from pydub import AudioSegment
 
 def load_waveform(path, samples=2000):
-    # Cargar audio con pydub (soporta MP3)
+    # Load audio with pydub (supports MP3)
     audio = AudioSegment.from_file(path)
 
     # Convertir a numpy
     data = np.array(audio.get_array_of_samples()).astype(np.float32)
 
-    # Si es estéreo, mezclar a mono
+    # If stereo, mix to mono
     if audio.channels == 2:
         data = data.reshape((-1, 2))
         data = data.mean(axis=1)
 
-    # Normalizar a [-1, 1]
+    # Normalize to [-1, 1]
     data /= np.iinfo(audio.array_type).max
 
-    # Reducir número de muestras
+    # Reduce number of samples
     factor = max(1, len(data) // samples)
     waveform = data[::factor]
 
@@ -31,7 +31,7 @@ def draw_local_waveform(waveform, position, window_size, tag, width=400, height=
     (0, 0),
     (width, height),
     fill=(0, 0, 0),
-    color=(40, 40, 40),   # borde gris oscuro
+    color=(40, 40, 40),   # dark gray border
     thickness=1,
     parent=tag
 )
@@ -40,7 +40,7 @@ def draw_local_waveform(waveform, position, window_size, tag, width=400, height=
     if waveform is None or len(waveform) < 2:
         return
 
-    # Ventana estilo Mixxx: empieza en position
+    # Mixxx style window: starts in position
     start = max(0, min(position, len(waveform) - window_size))
     end = start + window_size
     segment = waveform[start:end]
@@ -62,7 +62,7 @@ def draw_local_waveform(waveform, position, window_size, tag, width=400, height=
                       thickness=2,
                       parent=tag)
 
-    # Playhead al inicio (como Mixxx)
+    # Playhead at startup
     dpg.draw_line((0, 0), (0, height),
                   color=(255, 0, 0),
                   thickness=2,

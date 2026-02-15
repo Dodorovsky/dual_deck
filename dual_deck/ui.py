@@ -157,7 +157,7 @@ def file_dialog_callback(sender, app_data):
     global current_load_target
 
     path = app_data["file_path_name"]
-    track_name = Path(path).stem   # ← SIN EXTENSIÓN
+    track_name = Path(path).stem   # ← WITHOUT EXTENSION
 
     if current_load_target == "A":
         dual.deck_a.load(path)
@@ -174,7 +174,6 @@ def file_dialog_callback(sender, app_data):
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
     dpg.hide_item("file_dialog_id")
     current_load_target = None
-
 
 def draw_waveform(waveform, tag, width=1120, height=60):
     # Delete what was before
@@ -395,20 +394,20 @@ def start_ui():
             
     with dpg.theme() as pioneer_fader:
         with dpg.theme_component(dpg.mvSliderFloat):
-            # Fondo del track
+            # Track background
             dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (20, 20, 20))
             dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (30, 30, 30))
             dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (40, 40, 40))
 
-            # Fader cap (el “botón”)
+            # Fader cap (the “button”)
             dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (200, 200, 200))
             dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (255, 255, 255))
 
-            # Borde fino estilo Pioneer
+            # Pioneer style fine border
             dpg.add_theme_color(dpg.mvThemeCol_Border, (80, 80, 80))
             dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1)
 
-            # Padding para hacerlo más fino
+            # Padding to make it finer
             dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 2)
 
 
@@ -462,13 +461,13 @@ def start_ui():
             dpg.add_spacer(width=20)
 
             # ============================================
-            # BLOQUE DE MIXER PEGADO ABAJO
+            # MIXER BLOCK PASTED BELOW
             # ============================================
 
-            # Volumen A (pegado abajo)
+            # Volume A (glued below)
             with dpg.group():
                 
-                dpg.add_spacer(height=20)   # empuja hacia abajo
+                dpg.add_spacer(height=20)  
                 dpg.add_slider_float(
                     tag="vol_A",
                     label="",
@@ -485,7 +484,7 @@ def start_ui():
 
             dpg.add_spacer(width=15)
 
-            # VU A / MASTER / VU B (pegados abajo)
+            # VU A / MASTER / VU B (glued below)
             with dpg.group():
                 dpg.add_spacer(height=20)
                 with dpg.group(horizontal=True):
@@ -495,7 +494,7 @@ def start_ui():
 
             dpg.add_spacer(width=15)
 
-            # Volumen B (pegado abajo)
+            # Volume B (glued below)
             with dpg.group():
                 dpg.add_spacer(height=20)
                 dpg.add_slider_float(

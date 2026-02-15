@@ -34,7 +34,7 @@ class AudioEngine:
 
     def load(self, file_path):
 
-        # Si hay un stream anterior, cerrarlo
+        # If there is a previous stream, close it
         if self._stream is not None:
             try:
                 self._stream.stop_stream()
@@ -43,7 +43,7 @@ class AudioEngine:
                 pass
             self._stream = None
 
-        # Cargar audio
+        # Upload audio
         self._audio = AudioSegment.from_file(file_path)
 
         self._frame_rate = self._audio.frame_rate
@@ -51,7 +51,7 @@ class AudioEngine:
         self._sample_width = self._audio.sample_width
         self._raw_data = self._audio.raw_data
 
-        # Resetear posición
+        # Reset position
         self._byte_position = 0
         self._playhead = 0.0
         self.state = "stopped"
@@ -164,16 +164,16 @@ class AudioEngine:
                 )
                 
 
-            # convertir chunk a numpy para medir RMS
+            # convert chunk to numpy to measure RMS
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
 
-            # normalizar a 0–1
+            # normalize to 0–1
             vu_level = min(rms / 32768.0, 1.0)
 
             self._vu = vu_level
 
-            # calcular frames realmente reproducidos en este chunk
+            # calculate frames actually played in this chunk
             frames_played = len(chunk) // bytes_per_frame
             self._playhead += frames_played
 
@@ -182,7 +182,7 @@ class AudioEngine:
             except Exception:
                 break
 
-            # avanzar en el archivo original (NO en el chunk convertido)
+            # advance to the original file (NOT the converted chunk)
             self._byte_position += chunk_frames * bytes_per_frame
 
 
