@@ -3,6 +3,8 @@ from pathlib import Path
 from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
 from dual_deck.waveform import draw_local_waveform
+from dual_deck.library import get_all_tracks
+print(get_all_tracks())
 
 dual = DualDeck(audio_engine_cls=AudioEngine)
 
@@ -148,20 +150,39 @@ def crossfader_callback(sender, app_data):
     dual.set_crossfader(app_data)
     dpg.set_value("cross_value", f"{app_data:.2f}")
     
+def refresh_library_ui():
+    global library_tracks
+
+    tracks = get_all_tracks()
+    library_tracks = tracks
+
+    names = [t[2] for t in tracks]  # BIEN: muestra títulos
+
+
+    dpg.configure_item("library_list", items=names)
+
+    if names:
+        dpg.set_value("library_list", names[0])
+
+
+
+
+    dpg.set_value("library_list", names)
+    
 def file_dialog_callback(sender, app_data):
     global current_load_target
 
     path = app_data["file_path_name"]
-    track_name = Path(path).stem   # ← WITHOUT EXTENSION
+    track_name = Path(path).stem
 
     if current_load_target == "A":
-        dual.deck_a.load(path)
+        dual.deck_a.load_track(path)
         dpg.set_value("deck_a_title", track_name)
         draw_waveform(dual.deck_a.waveform, "global_wave_A")
         draw_local_waveform(dual.deck_a.waveform, 0, 300, "local_wave_A")
 
     elif current_load_target == "B":
-        dual.deck_b.load(path)
+        dual.deck_b.load_track(path)
         dpg.set_value("deck_b_title", track_name)
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
         draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
@@ -169,6 +190,10 @@ def file_dialog_callback(sender, app_data):
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
     dpg.hide_item("file_dialog_id")
     current_load_target = None
+
+    refresh_library_ui()
+
+
 
 def draw_waveform(waveform, tag, width=1120, height=60):
     # Delete what was before
@@ -241,11 +266,6 @@ def update_local_waves():
     master = min(1.0, vuA + vuB)
 
     draw_vu_stereo("vu_master", master, master)
-
-
-
-
-
 
     # -------------------------
     # REPROGRAMAR TIMER
@@ -330,6 +350,68 @@ def draw_vu_stereo(tag, left_level, right_level, width=40, height=120, segments=
             parent=tag
         )
  
+def load_from_library(deck_prefix):
+    tracks = get_all_tracks()
+    selected = dpg.get_value("library_list")
+
+    if not selected:
+        print("[UI] No track selected")
+        return
+
+  
+    titles = [t[2] for t in tracks] 
+    selected_index = titles.index(selected)
+
+    track = tracks[selected_index]
+    path = track[1]      
+    title = track[2]     
+
+    if deck_prefix == "A":
+        dual.deck_a.load_track(path)
+
+       
+        dpg.set_value("deck_a_title", title)
+        draw_waveform(dual.deck_a.waveform, "global_wave_A")
+        draw_local_waveform(dual.deck_a.waveform, 0, 300, "local_wave_A")
+
+    else:
+        dual.deck_b.load_track(path)
+
+       
+        dpg.set_value("deck_b_title", title)
+        draw_waveform(dual.deck_b.waveform, "global_wave_B")
+        draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
+
+   
+    dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
+
+
+
+
+
+def reanalyze_track():
+    tracks = get_all_tracks()
+    selected_title = dpg.get_value("library_list")
+
+    if not selected_title:
+        print("[UI] No track selected for reanalyze")
+        return
+
+    names = [t[2] for t in tracks]  # títulos
+    try:
+        idx = names.index(selected_title)
+    except ValueError:
+        print("[UI] Selected title not found in tracks")
+        return
+
+    track = tracks[idx]
+    path = track[1]  # path
+
+    delete_track_from_library(path)
+    dual.deck_a.load_track(path)
+    refresh_library_ui()
+
+
 # -----------------------------
 # Building UI
 # -----------------------------
@@ -415,7 +497,7 @@ def start_ui():
     # -----------------------------
     # MAIN WINDOW
     # -----------------------------
-    with dpg.window(label="Dual Deck", width=1150, height=500):
+    with dpg.window(label="Dual Deck", width=1150, height=850):
         dpg.add_spacer(height=20)
         
         # -----------------------------
@@ -570,6 +652,20 @@ def start_ui():
         with dpg.group(horizontal=True):
             dpg.add_spacer(width=530)
             dpg.add_text("0.50", tag="cross_value")
+            
+        dpg.add_button(label="Reanalyze Selected", callback=reanalyze_track)
+
+
+        with dpg.child_window(label="Library", tag="library_window", width=300, height=400):
+
+            dpg.add_listbox([], tag="library_list", width=280, num_items=15)
+            dpg.add_button(label="Load to Deck A", callback=lambda: load_from_library("A"))
+            dpg.add_button(label="Load to Deck B", callback=lambda: load_from_library("B"))
+
+
+
+        refresh_library_ui()
+
 
     # -----------------------------
     # FILE DIALOG
@@ -594,7 +690,7 @@ def start_ui():
     # -----------------------------
     # START DPG
     # -----------------------------
-    dpg.create_viewport(title="Dual Deck", width=1150, height=500)
+    dpg.create_viewport(title="Dual Deck", width=1150, height=850)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.start_dearpygui()

@@ -261,4 +261,3 @@ class DualDeck:
         self.deck_a._position = self.deck_a.position
         self.deck_b._position = self.deck_b.position
 
-
