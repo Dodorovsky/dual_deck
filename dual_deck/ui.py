@@ -1,5 +1,5 @@
 import dearpygui.dearpygui as dpg
-
+from pathlib import Path
 from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
 from dual_deck.waveform import draw_local_waveform
@@ -152,24 +152,26 @@ def stop_b():
 def crossfader_callback(sender, app_data):
     dual.set_crossfader(app_data)
     dpg.set_value("cross_value", f"{app_data:.2f}")
+    
 def file_dialog_callback(sender, app_data):
     global current_load_target
 
     path = app_data["file_path_name"]
+    track_name = Path(path).stem   # ← SIN EXTENSIÓN
 
     if current_load_target == "A":
         dual.deck_a.load(path)
+        dpg.set_value("deck_a_title", track_name)
         draw_waveform(dual.deck_a.waveform, "global_wave_A")
         draw_local_waveform(dual.deck_a.waveform, 0, 300, "local_wave_A")
 
     elif current_load_target == "B":
         dual.deck_b.load(path)
+        dpg.set_value("deck_b_title", track_name)
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
         draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
 
-    # RESET TIMER TO PICK UP THE NEW WAVEFORM
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
-
     dpg.hide_item("file_dialog_id")
     current_load_target = None
 
@@ -443,9 +445,10 @@ def start_ui():
         # LOCAL WAVES
         # -----------------------------
         with dpg.group(horizontal=True):
-            dpg.add_spacer(height=20)
+            
             with dpg.group():
-                dpg.add_spacer(height=50) 
+                dpg.add_spacer(height=30)
+                dpg.add_text("No track", tag="deck_a_title") 
             # --- Onda local A ---
                 with dpg.drawlist(width=300, height=60, tag="local_wave_A"):
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
@@ -511,7 +514,8 @@ def start_ui():
                 
             dpg.add_spacer(width=20)
             with dpg.group():
-                dpg.add_spacer(height=50) 
+                dpg.add_spacer(height=30)
+                dpg.add_text("No track", tag="deck_b_title")
                 with dpg.drawlist(width=300, height=60, tag="local_wave_B"):
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
                     pass
@@ -574,7 +578,7 @@ def start_ui():
                 dpg.add_text("0.00 BPM", tag="B_bpm_label")
 
         with dpg.group(horizontal=True):
-            dpg.add_spacer(width=540)
+            dpg.add_spacer(width=530)
             dpg.add_text("0.50", tag="cross_value")
 
     # -----------------------------
