@@ -24,7 +24,6 @@ def load_waveform(path, samples=2000):
 
     return waveform, audio.frame_rate
 
-
 def draw_local_waveform(waveform, position, window_size, tag, width=400, height=60):
     dpg.delete_item(tag, children_only=True)
     dpg.draw_rectangle(
@@ -35,7 +34,6 @@ def draw_local_waveform(waveform, position, window_size, tag, width=400, height=
     thickness=1,
     parent=tag
 )
-
 
     if waveform is None or len(waveform) < 2:
         return

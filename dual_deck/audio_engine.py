@@ -31,7 +31,6 @@ class AudioEngine:
         self._vu = 0.0
 
 
-
     def load(self, file_path):
 
         # If there is a previous stream, close it
@@ -163,7 +162,6 @@ class AudioEngine:
                     None
                 )
                 
-
             # convert chunk to numpy to measure RMS
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
@@ -189,7 +187,6 @@ class AudioEngine:
         self._stream.stop_stream()
         self._stream.close()
         self.state = "stopped"
-
 
     def set_keylock(self, enabled: bool):
         self.keylock = enabled

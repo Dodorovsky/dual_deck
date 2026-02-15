@@ -2,9 +2,6 @@ from dual_deck.audio_engine import AudioEngine
 import dearpygui.dearpygui as dpg
 from dual_deck.waveform import load_waveform
 
-
-
-
 class Deck:
     def __init__(self, prefix, audio_engine=None):
         self.prefix = prefix
@@ -98,7 +95,7 @@ class Deck:
             dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
 
         # Load waveform
-        self.waveform, _ = load_waveform(track_path)
+        self.waveform, _ = load_waveform(track_path) 
         
     @property
     def position(self):
@@ -113,9 +110,6 @@ class Deck:
 
         wf_index = int(len(self.waveform) * eng._playhead / total_frames)
         return max(0, min(wf_index, len(self.waveform) - 1))
-
-
-
 
     def play(self):
         if not self.is_loaded():
@@ -176,7 +170,6 @@ class Deck:
         self.set_pitch(ratio)
 
 
-
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
         self.deck_a = Deck("A", audio_engine_cls() if audio_engine_cls else None)
@@ -186,9 +179,6 @@ class DualDeck:
         self.active_deck = "A"
         self.master_volume = 1.0   # 100%
         
-
-
-
     def set_crossfader(self, value):
         self.crossfader = value
         # Adjust relative volumes

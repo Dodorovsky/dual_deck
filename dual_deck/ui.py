@@ -288,8 +288,7 @@ def draw_vu(parent, level, segments=24):
             color=(0, 0, 0),
             parent=parent
         )
-
-    
+   
 def draw_vu_stereo(tag, left_level, right_level, width=40, height=120, segments=24):
     dpg.delete_item(tag, children_only=True)
 
@@ -410,7 +409,6 @@ def start_ui():
             # Padding to make it finer
             dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 2)
 
-
     # -----------------------------
     # FONT
     # -----------------------------
@@ -481,7 +479,6 @@ def start_ui():
                 )
             dpg.bind_item_theme("vol_A", pioneer_fader)
 
-
             dpg.add_spacer(width=15)
 
             # VU A / MASTER / VU B (glued below)
@@ -510,7 +507,6 @@ def start_ui():
                 )
                 dpg.bind_item_theme("vol_B", pioneer_fader)
 
-                
             dpg.add_spacer(width=20)
             with dpg.group():
                 dpg.add_spacer(height=30)
