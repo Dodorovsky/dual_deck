@@ -126,6 +126,10 @@ class AudioEngine:
     def set_volume(self, vol):
         self._volume = max(0.0, min(1.0, vol))
 
+    def get_position_frames(self):
+        return self._playhead
+
+
     def _play_loop(self):
         
         chunk_frames = 1024
@@ -191,4 +195,3 @@ class AudioEngine:
 
     def set_keylock(self, enabled: bool):
         self.keylock = enabled
-

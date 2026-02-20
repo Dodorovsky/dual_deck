@@ -25,11 +25,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-
-
-
 def add_track(path, title, bpm, duration, waveform_path):
-    print(">>> ADD TRACK CALLED:", title) # ← DEBUG
     """Insert a track into the library."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -41,8 +37,6 @@ def add_track(path, title, bpm, duration, waveform_path):
 
     conn.commit()
     conn.close()
-
-
 
 def get_all_tracks():
     conn = sqlite3.connect(DB_PATH)
@@ -57,8 +51,6 @@ def get_all_tracks():
     rows = cursor.fetchall()
     conn.close()
     return rows
-
-
 
 def get_track_by_id(track_id):
     """Return a single track by ID."""

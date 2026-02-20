@@ -75,6 +75,7 @@ class Deck:
         self._volume = volume
         if self._audio_engine:
             self._audio_engine.set_volume(volume)
+        
 
     # --- From the previous test ---
     @property
@@ -172,6 +173,7 @@ class Deck:
             
         dpg.set_frame_callback(self._update_ui)
 
+
             
     def set_pitch(self, pitch):
         self._pitch = pitch
@@ -262,4 +264,3 @@ class DualDeck:
     def update(self):
         self.deck_a._position = self.deck_a.position
         self.deck_b._position = self.deck_b.position
-

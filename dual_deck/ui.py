@@ -186,6 +186,49 @@ def file_dialog_callback(sender, app_data):
         dpg.set_value("deck_b_title", track_name)
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
         draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
+        
+        
+    # -------------------------
+    # GLOBAL A: onda + playhead
+    # -------------------------
+    if dual.deck_a.waveform is not None:
+        dpg.delete_item("global_wave_A", children_only=True)
+
+        # fondo
+        dpg.draw_rectangle((0,0), (1120,60),
+                        fill=(0,0,0),
+                        color=(0,0,0),
+                        parent="global_wave_A")
+
+        # onda global
+        draw_waveform(dual.deck_a.waveform, "global_wave_A")
+
+        # playhead
+        x = (dual.deck_a.position / len(dual.deck_a.waveform)) * 1120
+        dpg.draw_line((x, 0), (x, 60),
+                    color=(255, 0, 0),
+                    thickness=2,
+                    parent="global_wave_A")
+
+# -------------------------
+# GLOBAL B: onda + playhead
+# -------------------------
+if dual.deck_b.waveform is not None:
+    dpg.delete_item("global_wave_B", children_only=True)
+
+    dpg.draw_rectangle((0,0), (1120,60),
+                       fill=(0,0,0),
+                       color=(0,0,0),
+                       parent="global_wave_B")
+
+    draw_waveform(dual.deck_b.waveform, "global_wave_B")
+
+    x = (dual.deck_b.position / len(dual.deck_b.waveform)) * 1120
+    dpg.draw_line((x, 0), (x, 60),
+                  color=(255, 0, 0),
+                  thickness=2,
+                  parent="global_wave_B")
+
 
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
     dpg.hide_item("file_dialog_id")
@@ -206,8 +249,6 @@ def draw_waveform(waveform, tag, width=1120, height=60):
     thickness=1,
     parent=tag
 )
-
-
     mid = height // 2
     step = width / len(waveform)
 
@@ -224,6 +265,7 @@ def draw_waveform(waveform, tag, width=1120, height=60):
         
 def get_master_level(deck_a, deck_b):
     return min(1.0, deck_a._vu + deck_b._vu)
+
 def update_local_waves():
     # -------------------------
     # ONDAS LOCALES
@@ -231,7 +273,7 @@ def update_local_waves():
     if dual.deck_a.waveform is not None:
         draw_local_waveform(
             dual.deck_a.waveform,
-            dual.deck_a.position,
+            dual.deck_a.position,   # <-- posición calculada automáticamente
             window_size=300,
             tag="local_wave_A"
         )
@@ -253,24 +295,57 @@ def update_local_waves():
     draw_vu("vu_A", vuA)
     draw_vu("vu_B", vuB)
 
-    # -------------------------
-    # VÚMETRO MASTER ESTÉREO
-    # (simulación: A = canal L, B = canal R)
-    # -------------------------
-    
-
-
-    vuA = dual.deck_a._audio_engine._vu
-    vuB = dual.deck_b._audio_engine._vu
-
     master = min(1.0, vuA + vuB)
-
     draw_vu_stereo("vu_master", master, master)
 
     # -------------------------
-    # REPROGRAMAR TIMER
+    # GLOBAL A
+    # -------------------------
+
+    if dual.deck_a.waveform is not None:
+        dpg.delete_item("global_wave_A", children_only=True)
+
+        # fondo
+        dpg.draw_rectangle((0,0), (1120,60),
+                        fill=(0,0,0),
+                        color=(0,0,0),
+                        parent="global_wave_A")
+
+        # onda global
+        draw_waveform(dual.deck_a.waveform, "global_wave_A")
+
+        # playhead encima
+        x = (dual.deck_a.position / len(dual.deck_a.waveform)) * 1120
+        dpg.draw_line((x, 0), (x, 60),
+                    color=(255, 0, 0),
+                    thickness=2,
+                    parent="global_wave_A")
+
+
+    # -------------------------
+    # GLOBAL B
+    # -------------------------
+    if dual.deck_b.waveform is not None:
+        dpg.delete_item("global_wave_B", children_only=True)
+
+        dpg.draw_rectangle((0,0), (1120,60),
+                        fill=(0,0,0),
+                        color=(0,0,0),
+                        parent="global_wave_B")
+
+        draw_waveform(dual.deck_b.waveform, "global_wave_B")
+
+        x = (dual.deck_b.position / len(dual.deck_b.waveform)) * 1120
+        dpg.draw_line((x, 0), (x, 60),
+                    color=(255, 0, 0),
+                    thickness=2,
+                    parent="global_wave_B")
+
+    # -------------------------
+    # REPROGRAM TIMER
     # -------------------------
     dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
+
 
 def draw_vu(parent, level, segments=24):
     dpg.delete_item(parent, children_only=True)
@@ -389,9 +464,6 @@ def load_from_library(deck_prefix):
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
 
 
-
-
-
 def reanalyze_track():
     tracks = get_all_tracks()
     selected_title = dpg.get_value("library_list")
@@ -500,23 +572,23 @@ def start_ui():
     # -----------------------------
     # MAIN WINDOW
     # -----------------------------
+    # -----------------------------
+    # GLOBAL WAVEFORM A
+    # -----------------------------
     with dpg.window(label="Dual Deck", width=1150, height=850):
         dpg.add_spacer(height=20)
-        
-        # -----------------------------
-        # GLOBAL WAVEFORMS
-        # -----------------------------
-        #dpg.add_text("Deck A Waveform")
-        with dpg.drawlist( width=1120, height=60, tag="global_wave_A"):
-            dpg.draw_rectangle((0, 0), (1120, 60), fill=(0, 0, 0), color=(0,0,0))
-            pass
 
-        #dpg.add_text("Deck B Waveform")
+        # GLOBAL A
+        with dpg.drawlist(width=1120, height=60, tag="global_wave_A"):
+            dpg.draw_rectangle((0,0), (1120,60), fill=(0,0,0), color=(0,0,0))
+
+        dpg.add_spacer(height=10)
+
+        # GLOBAL B
         with dpg.drawlist(width=1120, height=60, tag="global_wave_B"):
-            dpg.draw_rectangle((0, 0), (1120, 60), fill=(0, 0, 0), color=(0,0,0))
-            pass
-        
-        
+            dpg.draw_rectangle((0,0), (1120,60), fill=(0,0,0), color=(0,0,0))
+
+            
         dpg.add_spacer(height=20)
         # -----------------------------
         # LOCAL WAVES
@@ -530,8 +602,6 @@ def start_ui():
                 with dpg.drawlist(width=300, height=60, tag="local_wave_A"):
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
                     pass
-
-            #dpg.add_spacer(width=10)
 
             # --- Pitch A ---
             build_pitch_ui("A", dual.deck_a)
