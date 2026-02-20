@@ -22,6 +22,8 @@ class Deck:
         self.current_bpm = None
         self.pitch_range = 0.08   
         self.waveform = None
+        self.deck.cue_position = None
+
 
     # --- Initial state ---
     def is_loaded(self):

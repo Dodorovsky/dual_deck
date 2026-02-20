@@ -210,24 +210,24 @@ def file_dialog_callback(sender, app_data):
                     thickness=2,
                     parent="global_wave_A")
 
-# -------------------------
-# GLOBAL B: onda + playhead
-# -------------------------
-if dual.deck_b.waveform is not None:
-    dpg.delete_item("global_wave_B", children_only=True)
+    # -------------------------
+    # GLOBAL B: onda + playhead
+    # -------------------------
+    if dual.deck_b.waveform is not None:
+        dpg.delete_item("global_wave_B", children_only=True)
 
-    dpg.draw_rectangle((0,0), (1120,60),
-                       fill=(0,0,0),
-                       color=(0,0,0),
-                       parent="global_wave_B")
+        dpg.draw_rectangle((0,0), (1120,60),
+                        fill=(0,0,0),
+                        color=(0,0,0),
+                        parent="global_wave_B")
 
-    draw_waveform(dual.deck_b.waveform, "global_wave_B")
+        draw_waveform(dual.deck_b.waveform, "global_wave_B")
 
-    x = (dual.deck_b.position / len(dual.deck_b.waveform)) * 1120
-    dpg.draw_line((x, 0), (x, 60),
-                  color=(255, 0, 0),
-                  thickness=2,
-                  parent="global_wave_B")
+        x = (dual.deck_b.position / len(dual.deck_b.waveform)) * 1120
+        dpg.draw_line((x, 0), (x, 60),
+                    color=(255, 0, 0),
+                    thickness=2,
+                    parent="global_wave_B")
 
 
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
