@@ -4,15 +4,13 @@ from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
 from dual_deck.waveform import draw_local_waveform
 from dual_deck.library import get_all_tracks, delete_track_from_library
-print(get_all_tracks())
+
 
 dual = DualDeck(audio_engine_cls=AudioEngine)
 
 current_load_target = None   # "A" or "B"
 current_slider_value = 0.0
 current_pitch_range = 0.08
-
-
 
 def update_pitch_range_buttons(prefix, selected):
     dpg.bind_item_theme(f"btn_8_{prefix}",  "theme_button_default")
@@ -30,8 +28,6 @@ def update_pitch_display():
     pitch_percent = (dual.get_pitch() - 1.0) * 100
 
     dpg.set_value("pitch_label", f"{pitch_percent:+.1f}%")
-
-
 
 def on_pitch_slider(sender, app_data):
     global current_slider_value
@@ -99,14 +95,6 @@ def build_pitch_ui(prefix, deck):
                 dpg.add_button(label="±16%", tag=f"btn_16_{prefix}", width=60, callback=on_range, user_data=0.16)
                 dpg.add_button(label="±50%", tag=f"btn_50_{prefix}", width=60, callback=on_range, user_data=0.50)
 
-            
-                
-                #dpg.add_spacer(height=10)
-                #dpg.add_text("Pitch:")
-                #dpg.add_text("+0.0%", tag=pitch_tag) 
-
-                #dpg.add_text("BPM:")
-                #dpg.add_text("0.00 BPM", tag=bpm_tag)
                 dpg.add_spacer(height=1)
                 dpg.add_button(label="CUE", width=60, callback=lambda: deck.set_cue())
                 dpg.add_button(label="Play CUE", width=60, callback=lambda: deck.cue_play())
@@ -129,7 +117,6 @@ def load_track_b():
 def play_a():
     print("[UI] play_a() called")
     dual.deck_a.play()
-
     
 def play_b():
     dual.deck_b.play()
@@ -156,16 +143,13 @@ def refresh_library_ui():
     tracks = get_all_tracks()
     library_tracks = tracks
 
-    names = [t[2] for t in tracks]  # BIEN: muestra títulos
+    names = [t[2] for t in tracks]  # show titles
 
 
     dpg.configure_item("library_list", items=names)
 
     if names:
         dpg.set_value("library_list", names[0])
-
-
-
 
     dpg.set_value("library_list", names)
     
@@ -187,21 +171,28 @@ def file_dialog_callback(sender, app_data):
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
         draw_local_waveform(dual.deck_b.waveform, 0, 300, "local_wave_B")
         
-        
     # -------------------------
-    # GLOBAL A: onda + playhead
+    # GLOBAL A: onda + cue + playhead
     # -------------------------
     if dual.deck_a.waveform is not None:
         dpg.delete_item("global_wave_A", children_only=True)
 
-        # fondo
+        # background
         dpg.draw_rectangle((0,0), (1120,60),
                         fill=(0,0,0),
                         color=(0,0,0),
                         parent="global_wave_A")
 
-        # onda global
+        # global wave
         draw_waveform(dual.deck_a.waveform, "global_wave_A")
+
+        # --- CUE MARKER ---
+        if dual.deck_a.cue_position is not None:
+            cue_x = (dual.deck_a.cue_position / len(dual.deck_a.waveform)) * 1120
+            dpg.draw_line((cue_x, 0), (cue_x, 60),
+                        color=(0, 200, 255),   
+                        thickness=2,
+                        parent="global_wave_A")
 
         # playhead
         x = (dual.deck_a.position / len(dual.deck_a.waveform)) * 1120
@@ -210,8 +201,9 @@ def file_dialog_callback(sender, app_data):
                     thickness=2,
                     parent="global_wave_A")
 
+
     # -------------------------
-    # GLOBAL B: onda + playhead
+    # GLOBAL B: onda + cue + playhead
     # -------------------------
     if dual.deck_b.waveform is not None:
         dpg.delete_item("global_wave_B", children_only=True)
@@ -223,11 +215,21 @@ def file_dialog_callback(sender, app_data):
 
         draw_waveform(dual.deck_b.waveform, "global_wave_B")
 
+        # --- CUE MARKER ---
+        if dual.deck_b.cue_position is not None:
+            cue_x = (dual.deck_b.cue_position / len(dual.deck_b.waveform)) * 1120
+            dpg.draw_line((cue_x, 0), (cue_x, 60),
+                        color=(0, 200, 255),
+                        thickness=2,
+                        parent="global_wave_B")
+
+        # playhead
         x = (dual.deck_b.position / len(dual.deck_b.waveform)) * 1120
         dpg.draw_line((x, 0), (x, 60),
                     color=(255, 0, 0),
                     thickness=2,
                     parent="global_wave_B")
+
 
 
     dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
@@ -236,8 +238,6 @@ def file_dialog_callback(sender, app_data):
 
     refresh_library_ui()
 
-
-
 def draw_waveform(waveform, tag, width=1120, height=60):
     # Delete what was before
     dpg.delete_item(tag, children_only=True)
@@ -245,7 +245,7 @@ def draw_waveform(waveform, tag, width=1120, height=60):
     (0, 0),
     (width, height),
     fill=(0, 0, 0),
-    color=(40, 40, 40),   # borde gris oscuro
+    color=(40, 40, 40),   # dark gray border
     thickness=1,
     parent=tag
 )
@@ -268,12 +268,12 @@ def get_master_level(deck_a, deck_b):
 
 def update_local_waves():
     # -------------------------
-    # ONDAS LOCALES
+    # LOCAL WAVES
     # -------------------------
     if dual.deck_a.waveform is not None:
         draw_local_waveform(
             dual.deck_a.waveform,
-            dual.deck_a.position,   # <-- posición calculada automáticamente
+            dual.deck_a.position,   # <-- automatically calculated position
             window_size=300,
             tag="local_wave_A"
         )
@@ -287,7 +287,7 @@ def update_local_waves():
         )
 
     # -------------------------
-    # VÚMETROS A y B
+    # VUMETERS A and B
     # -------------------------
     vuA = dual.deck_a._audio_engine._vu
     vuB = dual.deck_b._audio_engine._vu
@@ -305,22 +305,21 @@ def update_local_waves():
     if dual.deck_a.waveform is not None:
         dpg.delete_item("global_wave_A", children_only=True)
 
-        # fondo
+        # background
         dpg.draw_rectangle((0,0), (1120,60),
                         fill=(0,0,0),
                         color=(0,0,0),
                         parent="global_wave_A")
 
-        # onda global
+        # global wave
         draw_waveform(dual.deck_a.waveform, "global_wave_A")
 
-        # playhead encima
+        # playhead on top
         x = (dual.deck_a.position / len(dual.deck_a.waveform)) * 1120
         dpg.draw_line((x, 0), (x, 60),
                     color=(255, 0, 0),
                     thickness=2,
                     parent="global_wave_A")
-
 
     # -------------------------
     # GLOBAL B
@@ -358,16 +357,16 @@ def draw_vu(parent, level, segments=24):
         y1 = height - (i + 1) * seg_height
         y2 = height - i * seg_height
 
-        # nivel actual en segmentos
+        # current level in segments
         active_segments = int(level * segments)
 
-        # color según zona
+        # color according to area
         if i < segments * 0.6:
-            color = (0, 200, 0)      # verde
+            color = (0, 200, 0)      
         elif i < segments * 0.85:
-            color = (255, 200, 0)    # amarillo
+            color = (255, 200, 0)    
         else:
-            color = (255, 0, 0)      # rojo
+            color = (255, 0, 0)      
 
         fill = color if i < active_segments else (40, 40, 40)
 
@@ -433,7 +432,6 @@ def load_from_library(deck_prefix):
         print("[UI] No track selected")
         return
 
-  
     titles = [t[2] for t in tracks] 
     selected_index = titles.index(selected)
 
@@ -569,9 +567,6 @@ def start_ui():
 
     dpg.bind_font(main_font)
      
-    # -----------------------------
-    # MAIN WINDOW
-    # -----------------------------
     # -----------------------------
     # GLOBAL WAVEFORM A
     # -----------------------------

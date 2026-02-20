@@ -171,7 +171,7 @@ class AudioEngine:
             rms = np.sqrt(np.mean(samples**2))
             self._vu = min(rms / 32768.0, 1.0)
 
-            # reproducir
+            # play
             try:
                 self._stream.write(chunk)
             except Exception as e:
@@ -180,12 +180,12 @@ class AudioEngine:
 
 
 
-            # avanzar playhead
+            # advance playhead
             frames_played = len(original_chunk) // bytes_per_frame
             self._playhead += frames_played
             print("[audio] playhead:", self._playhead)
 
-            # avanzar byte_position
+            # advance byte_position
             self._byte_position += len(original_chunk)
 
 

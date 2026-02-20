@@ -17,12 +17,12 @@ class Deck:
         self._position = 0
         self._volume = 1.0
         self._pitch = 1.0
-        self.cue_position = 0
+        self.cue_position = None
         self.original_bpm = None
         self.current_bpm = None
         self.pitch_range = 0.08   
         self.waveform = None
-        self.deck.cue_position = None
+        
 
 
     # --- Initial state ---
@@ -96,7 +96,7 @@ class Deck:
         force_reanalyze = False
 
         # -----------------------------------------
-        # 1. ANALIZAR SI NO ESTÁ EN LA LIBRERÍA
+        # 1. ANALYZE IF IT IS NOT IN THE BOOKSTORE
         # -----------------------------------------
         if force_reanalyze or track_data is None:
             print("[deck] Track not in library. Analyzing...")
@@ -112,7 +112,7 @@ class Deck:
             self.waveform = analysis["waveform"]
 
         # -----------------------------------------
-        # 2. CARGAR DESDE LA LIBRERÍA
+        # 2. LOAD FROM THE LIBRARY
         # -----------------------------------------
         else:
             print("[deck] Track found in library.")
@@ -130,7 +130,7 @@ class Deck:
             self.waveform = np.load(waveform_path)
 
         # -----------------------------------------
-        # 3. CARGAR AUDIO EN EL MOTOR
+        # 3. LOAD AUDIO INTO THE ENGINE
         # -----------------------------------------
         self._audio_engine.load(path)
 
@@ -174,8 +174,6 @@ class Deck:
             print("Playing")
             
         dpg.set_frame_callback(self._update_ui)
-
-
             
     def set_pitch(self, pitch):
         self._pitch = pitch
@@ -199,12 +197,25 @@ class Deck:
         if self.original_bpm:
             self.current_bpm = self.original_bpm * self._audio_engine._pitch
             dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
-
     def set_cue(self):
-        self.cue_position = self._audio_engine._byte_position
-        
+        eng = self._audio_engine
+        if eng is None:
+            return
+        # We save the CUE in FRAMES, just like _playhead
+        self.cue_position = eng._playhead
+
     def goto_cue(self):
-        self._audio_engine._byte_position = self.cue_position
+        eng = self._audio_engine
+        if eng is None or self.cue_position is None:
+            return
+
+        bytes_per_frame = eng._sample_width * eng._channels
+
+        # move the actual playback pointer
+        eng._byte_position = int(self.cue_position * bytes_per_frame)
+
+        # update playhead ALWAYS
+        eng._playhead = float(self.cue_position)
 
     def cue_play(self):
         self.goto_cue()
