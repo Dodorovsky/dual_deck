@@ -55,7 +55,6 @@ class AudioEngine:
         self._playhead = 0.0
         self.state = "stopped"
 
-
     def play(self):
         if self._audio is None:       
             return
@@ -125,7 +124,6 @@ class AudioEngine:
                 pass
             self._stream = None
 
-
     def set_pitch(self, pitch):
         self._pitch = max(0.5, min(2.0, pitch))
         
@@ -143,19 +141,15 @@ class AudioEngine:
     def get_position_frames(self):
         return self._playhead
 
-
     def _play_loop(self):
         
         chunk_frames = 1024
         bytes_per_frame = self._sample_width * self._channels
 
         while not self._stop_flag and self._byte_position < len(self._raw_data):
-            
-
             start = self._byte_position
             end = start + chunk_frames * bytes_per_frame
             
-
             # chunk original del archivo
             original_chunk = self._raw_data[start:end]
             chunk = original_chunk
@@ -179,7 +173,6 @@ class AudioEngine:
                     None
                 )
             
-
             # VU meter
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
@@ -192,20 +185,15 @@ class AudioEngine:
                 print("[audio] ERROR EN stream.write:", e)
                 raise
 
-
-
             # advance playhead
             frames_played = len(original_chunk) // bytes_per_frame
             self._playhead += frames_played
-           
-
-            # advance byte_position
             self._byte_position += len(original_chunk)
 
-
+        self._stop_flag = True
+        self._thread.join()
         self._stream.stop_stream()
         self._stream.close()
-        self.state = "stopped"
 
     def set_keylock(self, enabled: bool):
         self.keylock = enabled

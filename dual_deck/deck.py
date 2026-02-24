@@ -79,7 +79,7 @@ class Deck:
         if self._audio_engine:
             self._audio_engine.set_volume(volume)
         
-            
+        
     def safe_load(self, path):
         was_playing = self.is_playing
         self.stop()          
@@ -246,9 +246,6 @@ class Deck:
 
         # aplicar pitch REAL al motor
         self.set_pitch(ratio)
-
-
-
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
