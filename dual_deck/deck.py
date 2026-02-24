@@ -8,9 +8,10 @@ from .library import get_all_tracks
 
 
 class Deck:
-    def __init__(self, prefix, audio_engine=None):
-        self.prefix = prefix
-        self._audio_engine = audio_engine
+    def __init__(self, name, audio_engine=None):
+        self.name = name
+        self._audio_engine = audio_engine if audio_engine else AudioEngine()
+
         self._track_path = None
         self._is_playing = False
         self._is_paused = False
@@ -20,9 +21,9 @@ class Deck:
         self.cue_position = None
         self.original_bpm = None
         self.current_bpm = None
-        self.pitch_range = 0.08   
+        self.pitch_range = 0.08
         self.waveform = None
-        
+
 
 
     # --- Initial state ---
@@ -78,6 +79,13 @@ class Deck:
         if self._audio_engine:
             self._audio_engine.set_volume(volume)
         
+            
+    def safe_load(self, path):
+        was_playing = self.is_playing
+        self.stop()          
+        self.load_track(path)
+        #if was_playing:
+            #self.play()
 
     # --- From the previous test ---
     @property
@@ -128,6 +136,8 @@ class Deck:
 
             # waveform guardada en disco
             self.waveform = np.load(waveform_path)
+            self._audio_engine.load(path)
+
 
         # -----------------------------------------
         # 3. LOAD AUDIO INTO THE ENGINE
@@ -143,7 +153,7 @@ class Deck:
 
         # update local wave
         try:
-            dpg.set_value(f"{self.prefix}_local_wave", self._position)
+            dpg.set_value(f"{self.name}_local_wave", self._position)
         except:
             pass
 
@@ -163,6 +173,8 @@ class Deck:
         return max(0, min(wf_index, len(self.waveform) - 1))
 
     def play(self):
+        print("PLAYING DECK:", self.name, "ENGINE OBJECT:", self._audio_engine)
+
         if not self.is_loaded():
             return  
 
@@ -173,7 +185,7 @@ class Deck:
             self._audio_engine.play()
             print("Playing")
             
-        dpg.set_frame_callback(self._update_ui)
+     
             
     def set_pitch(self, pitch):
         self._pitch = pitch
@@ -183,7 +195,7 @@ class Deck:
 
         if self.original_bpm:
             self.current_bpm = self.original_bpm * pitch
-            dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+            dpg.set_value(f"{self.name}_bpm_label", f"{self.current_bpm:.2f} BPM")
           
     def set_pitch_range(self, r):
         self.pitch_range = r
@@ -196,7 +208,7 @@ class Deck:
 
         if self.original_bpm:
             self.current_bpm = self.original_bpm * self._audio_engine._pitch
-            dpg.set_value(f"{self.prefix}_bpm_label", f"{self.current_bpm:.2f} BPM")
+            dpg.set_value(f"{self.name}_bpm_label", f"{self.current_bpm:.2f} BPM")
     def set_cue(self):
         eng = self._audio_engine
         if eng is None:
@@ -277,3 +289,4 @@ class DualDeck:
     def update(self):
         self.deck_a._position = self.deck_a.position
         self.deck_b._position = self.deck_b.position
+        

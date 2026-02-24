@@ -49,7 +49,6 @@ class AudioEngine:
         self._channels = self._audio.channels
         self._sample_width = self._audio.sample_width
         self._raw_data = self._audio.raw_data
-        print("[audio] loaded", file_path, "len(raw_data) =", len(self._raw_data))
 
         # Reset position
         self._byte_position = 0
@@ -58,15 +57,12 @@ class AudioEngine:
 
 
     def play(self):
-        if self._audio is None:
-            print("[audio] play() called but _audio is None")
+        if self._audio is None:       
             return
 
         if self.state == "playing":
-            print("[audio] play() called but already playing")
             return
-        print("[audio] play() starting")
-
+        
         self.state = "playing"
         self._stop_flag = False
 
@@ -109,8 +105,26 @@ class AudioEngine:
         self._thread.start()
 
     def stop(self):
+        if self.state != "playing":
+            return
+
         self._stop_flag = True
         self.state = "stopped"
+
+        # Esperar a que el hilo termine
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
+
+        # Cerrar stream si sigue abierto
+        if self._stream is not None:
+            try:
+                self._stream.stop_stream()
+                self._stream.close()
+            except:
+                pass
+            self._stream = None
+
 
     def set_pitch(self, pitch):
         self._pitch = max(0.5, min(2.0, pitch))
@@ -136,11 +150,11 @@ class AudioEngine:
         bytes_per_frame = self._sample_width * self._channels
 
         while not self._stop_flag and self._byte_position < len(self._raw_data):
-            print("[audio] _play_loop started")
+            
 
             start = self._byte_position
             end = start + chunk_frames * bytes_per_frame
-            print("[audio] loop, byte_position:", self._byte_position)
+            
 
             # chunk original del archivo
             original_chunk = self._raw_data[start:end]
@@ -164,7 +178,7 @@ class AudioEngine:
                     new_rate,
                     None
                 )
-            print("[audio] playhead:", self._playhead)
+            
 
             # VU meter
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
@@ -183,7 +197,7 @@ class AudioEngine:
             # advance playhead
             frames_played = len(original_chunk) // bytes_per_frame
             self._playhead += frames_played
-            print("[audio] playhead:", self._playhead)
+           
 
             # advance byte_position
             self._byte_position += len(original_chunk)
