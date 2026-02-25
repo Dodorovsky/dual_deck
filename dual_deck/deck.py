@@ -81,7 +81,7 @@ class Deck:
         
         
     def safe_load(self, path):
-        was_playing = self.is_playing
+        #was_playing = self.is_playing
         self.stop()          
         self.load_track(path)
         #if was_playing:
@@ -103,9 +103,6 @@ class Deck:
 
         force_reanalyze = False
 
-        # -----------------------------------------
-        # 1. ANALYZE IF IT IS NOT IN THE BOOKSTORE
-        # -----------------------------------------
         if force_reanalyze or track_data is None:
             print("[deck] Track not in library. Analyzing...")
 
@@ -119,9 +116,6 @@ class Deck:
             self.waveform_path = analysis["waveform_path"]
             self.waveform = analysis["waveform"]
 
-        # -----------------------------------------
-        # 2. LOAD FROM THE LIBRARY
-        # -----------------------------------------
         else:
             print("[deck] Track found in library.")
 
@@ -134,19 +128,14 @@ class Deck:
             self.duration = duration
             self.waveform_path = waveform_path
 
-            # waveform guardada en disco
             self.waveform = np.load(waveform_path)
-            self._audio_engine.load(path)
 
-
-        # -----------------------------------------
-        # 3. LOAD AUDIO INTO THE ENGINE
-        # -----------------------------------------
+        # --- Load audio into engine (only once) ---
         self._audio_engine.load(path)
 
         print("[deck] Track loaded successfully.")
 
-    
+  
     def _update_ui(self):
         # update internal position
         self._position = self.position
@@ -185,8 +174,6 @@ class Deck:
             self._audio_engine.play()
             print("Playing")
             
-     
-            
     def set_pitch(self, pitch):
         self._pitch = pitch
 
@@ -209,6 +196,7 @@ class Deck:
         if self.original_bpm:
             self.current_bpm = self.original_bpm * self._audio_engine._pitch
             dpg.set_value(f"{self.name}_bpm_label", f"{self.current_bpm:.2f} BPM")
+            
     def set_cue(self):
         eng = self._audio_engine
         if eng is None:
