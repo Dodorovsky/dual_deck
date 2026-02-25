@@ -110,7 +110,6 @@ def load_track_a():
     current_load_target = "A"
     dpg.show_item("file_dialog_id")
 
-
 def load_track_b():
     global current_load_target
     current_load_target = "B"
@@ -128,12 +127,6 @@ def pause_a():
 
 def pause_b():
     dual.deck_b.pause()
-
-def stop_a():
-    dual.deck_a.stop()
-
-def stop_b():
-    dual.deck_b.stop()
 
 def crossfader_callback(sender, app_data):
     dual.set_crossfader(app_data)
@@ -628,16 +621,14 @@ def start_ui():
             # DECK A
             # -----------------------------
             with dpg.group(horizontal=True):
-                dpg.add_spacer(width=50)
+                dpg.add_spacer(width=70)
                 load_a = dpg.add_button(label="Load A", callback=load_track_a)
                 dpg.bind_item_theme(load_a,  "theme_controls_default")
                 play_aa = dpg.add_button(label="play", callback=play_a)
                 dpg.bind_item_theme(play_aa,  "theme_controls_default")
                 pause_aa = dpg.add_button(label="pause", callback=pause_a)
                 dpg.bind_item_theme(pause_aa,  "theme_controls_default")
-                stop_aa = dpg.add_button(label="stop", callback=stop_a)
-                dpg.bind_item_theme(stop_aa,  "theme_controls_default")
-                dpg.add_spacer(width=40)
+                dpg.add_spacer(width=55)
                 dpg.add_text("  0.00 BPM  ", tag="A_bpm_label")
                 
             dpg.add_spacer(width=73)
@@ -658,7 +649,7 @@ def start_ui():
             )
             dpg.bind_item_theme("crossfader", fader_theme)
 
-            dpg.add_spacer(width=70)
+            dpg.add_spacer(width=90)
 
             # -----------------------------
             # DECK B
@@ -670,9 +661,7 @@ def start_ui():
                 dpg.bind_item_theme(play_bb,  "theme_controls_default")
                 pause_bb = dpg.add_button(label="pause", callback=pause_b)
                 dpg.bind_item_theme(pause_bb,  "theme_controls_default")
-                stop_bb = dpg.add_button(label="stop", callback=stop_b)
-                dpg.bind_item_theme(stop_bb,  "theme_controls_default")
-                dpg.add_spacer(width=50)
+                dpg.add_spacer(width=73)
                 dpg.add_text("0.00 BPM", tag="B_bpm_label")
 
         with dpg.group(horizontal=True):
