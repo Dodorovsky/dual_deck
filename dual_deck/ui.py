@@ -312,7 +312,6 @@ def update_local_waves():
     # -------------------------
     dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
 
-
 def draw_vu(parent, level, segments=24):
     dpg.delete_item(parent, children_only=True)
 

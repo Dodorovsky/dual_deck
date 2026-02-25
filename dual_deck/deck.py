@@ -78,8 +78,7 @@ class Deck:
         self._volume = volume
         if self._audio_engine:
             self._audio_engine.set_volume(volume)
-        
-        
+           
     def safe_load(self, path):
         #was_playing = self.is_playing
         self.stop()          
@@ -92,9 +91,6 @@ class Deck:
     def current_track(self):
         return self._track_path
     
-    def load(self, path):
-        self.load_track(path)
-
     def load_track(self, path):
         self._track_path = path
 
@@ -135,7 +131,6 @@ class Deck:
 
         print("[deck] Track loaded successfully.")
 
-  
     def _update_ui(self):
         # update internal position
         self._position = self.position
