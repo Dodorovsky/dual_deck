@@ -14,6 +14,7 @@ current_pitch_range = 0.08
 loop_enabled = True
 
 
+
 def update_pitch_range_buttons(prefix, selected):
     dpg.bind_item_theme(f"btn_8_{prefix}",  "theme_button_default")
     dpg.bind_item_theme(f"btn_16_{prefix}", "theme_button_default")
@@ -158,16 +159,15 @@ def file_dialog_callback(sender, app_data):
 
     if current_load_target == "A":
         dual.deck_a.safe_load(path)
-
-        update_local_waves() 
+        draw_global_static(dual.deck_a, "global_wave_A")   # ✅ A en A
         dpg.set_value("deck_a_title", track_name)
-
+        update_local_waves()  
 
     elif current_load_target == "B":
         dual.deck_b.safe_load(path)
-
-        update_local_waves() 
+        draw_global_static(dual.deck_b, "global_wave_B")   # ✅ B en B
         dpg.set_value("deck_b_title", track_name)
+        update_local_waves()  
 
         
     loop_enabled = True #  REACTIVATE THE LOOP 
@@ -205,105 +205,110 @@ def draw_waveform(waveform, tag, width=1120, height=60):
 def get_master_level(deck_a, deck_b):
     return min(1.0, deck_a._vu + deck_b._vu)
 
-def update_local_waves():
-    if not loop_enabled:
-        # Reprogramamos el loop pero no hacemos nada
-        dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
+def draw_global_static(deck, tag, width=1120, height=60):
+    dpg.delete_item(tag, children_only=True)
+
+    wf = deck.waveform
+    if wf is None or wf.size == 0:
         return
 
-    # -------------------------
-    # LOCAL WAVES
-    # -------------------------
-    if dual.deck_a.waveform is not None:
-        draw_local_waveform(
-            dual.deck_a.waveform,
-            dual.deck_a.position,   # <-- automatically calculated position
-            window_size=300,
-            tag="local_wave_A"
+    dpg.draw_rectangle(
+        (0, 0),
+        (width, height),
+        fill=(0, 0, 0),
+        color=(40, 40, 40),
+        thickness=1,
+        parent=tag
+    )
+
+    mid = height // 2
+    step = width / len(wf)
+
+    for i in range(len(wf) - 1):
+        x1 = i * step
+        y1 = mid - wf[i] * mid
+        x2 = (i + 1) * step
+        y2 = mid - wf[i + 1] * mid
+
+        dpg.draw_line(
+            (x1, y1),
+            (x2, y2),
+            color=(0, 200, 255),
+            thickness=1,
+            parent=tag
         )
 
-    if dual.deck_b.waveform is not None:
-        draw_local_waveform(
-            dual.deck_b.waveform,
-            dual.deck_b.position,
-            window_size=300,
-            tag="local_wave_B"
-        )
+    # overlays placeholders
+    dpg.draw_line((0, 0), (0, height),
+                  color=(255, 0, 0),
+                  thickness=2,
+                  parent=tag,
+                  tag=f"{tag}_playhead")
 
-    # -------------------------
-    # VUMETERS A and B
-    # -------------------------
-    vuA = dual.deck_a._audio_engine._vu
-    vuB = dual.deck_b._audio_engine._vu
+    dpg.draw_line((0, 0), (0, height),
+                  color=(0, 200, 255),
+                  thickness=2,
+                  parent=tag,
+                  tag=f"{tag}_cue")
+    
+    # contenedor para hotcues (solo se crea una vez)
+    if not dpg.does_item_exist(f"{tag}_hotcues"):
+        dpg.add_draw_node(tag=f"{tag}_hotcues", parent=tag)
+    
+def update_global_overlays(deck, tag, width=1120, height=60):
+    wf = deck.waveform
+    if wf is None or wf.size == 0:
+        return
 
-    draw_vu("vu_A", vuA)
-    draw_vu("vu_B", vuB)
+    play_tag = f"{tag}_playhead"
+    cue_tag  = f"{tag}_cue"
 
-    master = min(1.0, vuA + vuB)
-    draw_vu_stereo("vu_master", master, master)
+    # si los overlays no existen aún, crea la global estática una vez
+    if not dpg.does_item_exist(play_tag) or not dpg.does_item_exist(cue_tag):
+        draw_global_static(deck, tag, width, height)
 
-    # -------------------------
-    # GLOBAL A: onda + cue + playhead
-    # -------------------------
-    if dual.deck_a.waveform is not None:
-        dpg.delete_item("global_wave_A", children_only=True)
+    # playhead
+    x = (deck.position / len(wf)) * width
+    dpg.configure_item(play_tag, p1=(x, 0), p2=(x, height))
 
-        # background
-        dpg.draw_rectangle((0,0), (1120,60),
-                        fill=(0,0,0),
-                        color=(0,0,0),
-                        parent="global_wave_A")
+    # cue
+    if deck.cue_position is not None:
+        cue_x = (deck.cue_position / len(wf)) * width
+        dpg.configure_item(cue_tag, p1=(cue_x, 0), p2=(cue_x, height))
+        dpg.show_item(cue_tag)
+    else:
+        dpg.hide_item(cue_tag)
 
-        # global wave
-        draw_waveform(dual.deck_a.waveform, "global_wave_A")
+def update_local_waves():
+    try:
+        if not loop_enabled:
+            return
 
-        # --- CUE MARKER ---
-        if dual.deck_a.cue_position is not None:
-            cue_x = (dual.deck_a.cue_position / len(dual.deck_a.waveform)) * 1120
-            dpg.draw_line((cue_x, 0), (cue_x, 60),
-                        color=(0, 200, 255),   
-                        thickness=2,
-                        parent="global_wave_A")
+        # LOCAL WAVES
+        if dual.deck_a.waveform is not None:
+            draw_local_waveform(dual.deck_a.waveform, dual.deck_a.position, window_size=300, tag="local_wave_A")
 
-        # playhead
-        x = (dual.deck_a.position / len(dual.deck_a.waveform)) * 1120
-        dpg.draw_line((x, 0), (x, 60),
-                    color=(255, 0, 0),
-                    thickness=2,
-                    parent="global_wave_A")
+        if dual.deck_b.waveform is not None:
+            draw_local_waveform(dual.deck_b.waveform, dual.deck_b.position, window_size=300, tag="local_wave_B")
 
-    # -------------------------
-    # GLOBAL B: onda + cue + playhead
-    # -------------------------
-    if dual.deck_b.waveform is not None:
-        dpg.delete_item("global_wave_B", children_only=True)
+        # OVERLAYS GLOBAL (solo playhead/cue)
+        if dual.deck_a.waveform is not None:
+            update_global_overlays(dual.deck_a, "global_wave_A")
 
-        dpg.draw_rectangle((0,0), (1120,60),
-                        fill=(0,0,0),
-                        color=(0,0,0),
-                        parent="global_wave_B")
+        if dual.deck_b.waveform is not None:
+            update_global_overlays(dual.deck_b, "global_wave_B")
 
-        draw_waveform(dual.deck_b.waveform, "global_wave_B")
+        # VU
+        vuA = dual.deck_a._audio_engine._vu
+        vuB = dual.deck_b._audio_engine._vu
+        draw_vu("vu_A", vuA)
+        draw_vu("vu_B", vuB)
+        master = min(1.0, vuA + vuB)
+        draw_vu_stereo("vu_master", master, master)
 
-        # --- CUE MARKER ---
-        if dual.deck_b.cue_position is not None:
-            cue_x = (dual.deck_b.cue_position / len(dual.deck_b.waveform)) * 1120
-            dpg.draw_line((cue_x, 0), (cue_x, 60),
-                        color=(0, 200, 255),
-                        thickness=2,
-                        parent="global_wave_B")
-
-        # playhead
-        x = (dual.deck_b.position / len(dual.deck_b.waveform)) * 1120
-        dpg.draw_line((x, 0), (x, 60),
-                    color=(255, 0, 0),
-                    thickness=2,
-                    parent="global_wave_B")
-
-    # -------------------------
-    # REPROGRAM TIMER
-    # -------------------------
-    dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
+    finally:
+        # ✅ pase lo que pase, el loop sigue vivo
+        dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
 
 def draw_vu(parent, level, segments=24):
     dpg.delete_item(parent, children_only=True)
@@ -402,17 +407,22 @@ def load_from_library(deck_prefix):
 
     if deck_prefix == "A":
         dual.deck_a.safe_load(path)
+        draw_global_static(dual.deck_a, "global_wave_A")
         dpg.set_value("deck_a_title", title)
         dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
+        update_local_waves()
+        
 
     else:
         dual.deck_b.safe_load(path)
+        draw_global_static(dual.deck_b, "global_wave_B")
         dpg.set_value("deck_b_title", title)
         dpg.set_value("B_bpm_label", f"{dual.deck_b.bpm:.2f} BPM")
+        update_local_waves()
+        
         
     loop_enabled = True
-    update_local_waves()
-
+  
 def reanalyze_track():
     tracks = get_all_tracks()
     selected_title = dpg.get_value("library_list")
@@ -435,7 +445,72 @@ def reanalyze_track():
     dual.deck_a.load_track(path)
     refresh_library_ui()
 
+def frames_to_x(deck, frame, width=1120):
+    eng = deck._audio_engine
+    if eng is None or eng._raw_data is None:
+        return 0
 
+    bytes_per_frame = eng._sample_width * eng._channels
+    total_frames = len(eng._raw_data) // bytes_per_frame
+    if total_frames <= 0:
+        return 0
+
+    return (frame / total_frames) * width
+
+def refresh_hotcue_markers(deck, tag, width=1120, height=60):
+    node_tag = f"{tag}_hotcues"
+
+    if not dpg.does_item_exist(node_tag):
+        dpg.add_draw_node(tag=node_tag, parent=tag)
+
+    # borrar solo hijos del nodo
+    dpg.delete_item(node_tag, children_only=True)
+
+    eng = deck._audio_engine
+    if eng is None or eng._raw_data is None:
+        return
+
+    bytes_per_frame = eng._sample_width * eng._channels
+    total_frames = len(eng._raw_data) // bytes_per_frame
+    if total_frames <= 0:
+        return
+
+    for n, frame in sorted(deck.hotcues.items()):
+        x = (frame / total_frames) * width
+
+        dpg.draw_line(
+            (x, 0),
+            (x, height),
+            color=(255, 255, 0),
+            thickness=2,
+            parent=node_tag
+        )
+
+        dpg.draw_text(
+            (x + 2, 2),
+            str(n),
+            color=(255, 255, 0),
+            parent=node_tag
+        )
+        
+def add_hotcue_ui(prefix, deck, global_tag):
+    set_tag = f"hotcue_set_{prefix}"
+    dpg.add_checkbox(label="SET", tag=set_tag)
+
+    def hotcue_pressed(sender, app_data, user_data):
+        n = user_data
+        if n is None:
+            return
+
+        if dpg.get_value(set_tag):
+            deck.set_hotcue(n)
+            refresh_hotcue_markers(deck, global_tag)
+        else:
+            deck.goto_hotcue(n)
+
+    with dpg.group(horizontal=True):
+        for n in (1, 2, 3, 4):
+            dpg.add_button(label=str(n), width=30, callback=hotcue_pressed, user_data=n)
 # -----------------------------
 # Building UI
 # -----------------------------
@@ -543,11 +618,15 @@ def start_ui():
             
             with dpg.group():
                 dpg.add_spacer(height=30)
-                dpg.add_text("No track", tag="deck_a_title") 
-            # --- Onda local A ---
+                dpg.add_text("No track", tag="deck_a_title")
+
                 with dpg.drawlist(width=300, height=60, tag="local_wave_A"):
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
-                    pass
+
+                # ✅ HOTCUES debajo de la onda local
+                add_hotcue_ui("A", dual.deck_a, "global_wave_A")
+                
+                
 
             # --- Pitch A ---
             build_pitch_ui("A", dual.deck_a)
@@ -610,8 +689,9 @@ def start_ui():
                 with dpg.drawlist(width=300, height=60, tag="local_wave_B"):
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
                     pass
+                add_hotcue_ui("B", dual.deck_b, "global_wave_B")
             build_pitch_ui("B", dual.deck_b)
-
+            
         # -----------------------------
         # DECK CONTROLS (A y B)
         # -----------------------------
@@ -694,10 +774,6 @@ def start_ui():
         dpg.add_file_extension(".mp3", color=(0, 255, 0, 255))
         dpg.add_file_extension(".wav", color=(0, 200, 255, 255))
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
-
-    # -----------------------------
-    # START LOCAL WAVE UPDATES
-    # -----------------------------
     
 
     # -----------------------------

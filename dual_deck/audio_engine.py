@@ -56,33 +56,63 @@ class AudioEngine:
         self.state = "stopped"
 
     def play(self):
-        if self._audio is None:       
+        if self._audio is None:
             return
-
         if self.state == "playing":
             return
-        
+
         self.state = "playing"
         self._stop_flag = False
 
-        #  open stream
         self._stream = self._pyaudio.open(
             format=self._pyaudio.get_format_from_width(self._sample_width),
             channels=self._channels,
             rate=self._frame_rate,
             output=True
         )
-        
-        # throw thread
-        self._thread = threading.Thread(target=self._play_loop)
+
+        self._thread = threading.Thread(target=self._play_loop, daemon=True, name="AudioEngineThread")
         self._thread.start()
-        
+            
+        def pause(self):
+            if self.state != "playing":
+                return
+
+            self._stop_flag = True
+            self.state = "paused"
+
+            t = self._thread
+            if t is not None and t.is_alive() and t is not threading.current_thread():
+                t.join()
+            self._thread = None
+
+            if self._stream is not None:
+                try:
+                    self._stream.stop_stream()
+                    self._stream.close()
+                except Exception:
+                    pass
+                self._stream = None
+      
     def pause(self):
         if self.state != "playing":
             return
 
         self._stop_flag = True
         self.state = "paused"
+
+        t = self._thread
+        if t is not None and t.is_alive() and t is not threading.current_thread():
+            t.join()
+        self._thread = None
+
+        if self._stream is not None:
+            try:
+                self._stream.stop_stream()
+                self._stream.close()
+            except Exception:
+                pass
+            self._stream = None
         
     def resume(self):
         if self.state != "paused":
@@ -104,25 +134,27 @@ class AudioEngine:
         self._thread.start()
 
     def stop(self):
-        if self.state != "playing":
+        if self.state not in ("playing", "paused"):
             return
 
         self._stop_flag = True
         self.state = "stopped"
 
-        # Esperar a que el hilo termine
-        if self._thread is not None:
-            self._thread.join()
-            self._thread = None
+        t = self._thread
+        if t is not None and t.is_alive() and t is not threading.current_thread():
+            t.join()
+        self._thread = None
 
-        # Cerrar stream si sigue abierto
         if self._stream is not None:
             try:
                 self._stream.stop_stream()
                 self._stream.close()
-            except:
+            except Exception:
                 pass
             self._stream = None
+
+        self._byte_position = 0
+        self._playhead = 0.0
 
     def set_pitch(self, pitch):
         self._pitch = max(0.5, min(2.0, pitch))
@@ -142,26 +174,22 @@ class AudioEngine:
         return self._playhead
 
     def _play_loop(self):
-        
         chunk_frames = 1024
         bytes_per_frame = self._sample_width * self._channels
 
         while not self._stop_flag and self._byte_position < len(self._raw_data):
             start = self._byte_position
             end = start + chunk_frames * bytes_per_frame
-            
-            # chunk original del archivo
+
             original_chunk = self._raw_data[start:end]
             chunk = original_chunk
 
             if len(chunk) == 0:
                 break
 
-            # volumen
             if self._volume != 1.0:
                 chunk = audioop.mul(chunk, self._sample_width, self._volume)
 
-            # pitch
             if self._pitch != 1.0:
                 new_rate = int(self._frame_rate / self._pitch)
                 chunk, _ = audioop.ratecv(
@@ -172,28 +200,24 @@ class AudioEngine:
                     new_rate,
                     None
                 )
-            
-            # VU meter
+
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
             self._vu = min(rms / 32768.0, 1.0)
 
-            # play
+            # If stop/pause closes the stream, write can throw exception.
+            # In that case, we leave the clean loop.
             try:
                 self._stream.write(chunk)
             except Exception as e:
-                print("[audio] ERROR EN stream.write:", e)
-                raise
+                print("[audio] stream.write error:", e)
+                break
 
-            # advance playhead
             frames_played = len(original_chunk) // bytes_per_frame
             self._playhead += frames_played
             self._byte_position += len(original_chunk)
 
         self._stop_flag = True
-        self._thread.join()
-        self._stream.stop_stream()
-        self._stream.close()
 
     def set_keylock(self, enabled: bool):
         self.keylock = enabled

@@ -23,6 +23,7 @@ class Deck:
         self.current_bpm = None
         self.pitch_range = 0.08
         self.waveform = None
+        self.hotcues = {}
 
 
 
@@ -85,6 +86,7 @@ class Deck:
         self.load_track(path)
         #if was_playing:
             #self.play()
+
 
     # --- From the previous test ---
     @property
@@ -229,6 +231,27 @@ class Deck:
 
         # aplicar pitch REAL al motor
         self.set_pitch(ratio)
+
+    def set_hotcue(self, n: int):
+        eng = self._audio_engine
+        if eng is None:
+            return
+        self.hotcues[int(n)] = float(eng._playhead)
+
+    def clear_hotcue(self, n: int):
+        self.hotcues.pop(int(n), None)
+
+    def goto_hotcue(self, n: int):
+        eng = self._audio_engine
+        if eng is None:
+            return
+        frame = self.hotcues.get(int(n))
+        if frame is None:
+            return
+
+        bytes_per_frame = eng._sample_width * eng._channels
+        eng._byte_position = int(frame * bytes_per_frame)
+        eng._playhead = float(frame)
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
