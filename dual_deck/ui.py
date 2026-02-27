@@ -150,32 +150,30 @@ def refresh_library_ui():
     dpg.set_value("library_list", names)
     
 def file_dialog_callback(sender, app_data):
-    global current_load_target, loop_enabled
+    global loop_enabled, current_load_target
+    loop_enabled = False
+    try:
+        path = app_data["file_path_name"]
+        track_name = Path(path).stem
 
-    loop_enabled = False # ⛔ PAUSE LOOP
-    
-    path = app_data["file_path_name"]
-    track_name = Path(path).stem
+        if current_load_target == "A":
+            dual.deck_a.safe_load(path)
+            draw_global_static(dual.deck_a, "global_wave_A")
+            refresh_hotcue_markers(dual.deck_a, "global_wave_A")
+            dpg.set_value("deck_a_title", track_name)
 
-    if current_load_target == "A":
-        dual.deck_a.safe_load(path)
-        draw_global_static(dual.deck_a, "global_wave_A")   # ✅ A en A
-        dpg.set_value("deck_a_title", track_name)
-        update_local_waves()  
+        elif current_load_target == "B":
+            dual.deck_b.safe_load(path)
+            draw_global_static(dual.deck_b, "global_wave_B")
+            refresh_hotcue_markers(dual.deck_b, "global_wave_B")
+            dpg.set_value("deck_b_title", track_name)
 
-    elif current_load_target == "B":
-        dual.deck_b.safe_load(path)
-        draw_global_static(dual.deck_b, "global_wave_B")   # ✅ B en B
-        dpg.set_value("deck_b_title", track_name)
-        update_local_waves()  
+        refresh_library_ui()
+        dpg.hide_item("file_dialog_id")
+        current_load_target = None
 
-        
-    loop_enabled = True #  REACTIVATE THE LOOP 
-    
-        
-    dpg.hide_item("file_dialog_id")
-    current_load_target = None
-    refresh_library_ui()
+    finally:
+        loop_enabled = True
 
 def draw_waveform(waveform, tag, width=1120, height=60):
     # Delete what was before
@@ -306,6 +304,9 @@ def update_local_waves():
         master = min(1.0, vuA + vuB)
         draw_vu_stereo("vu_master", master, master)
 
+    except Exception as e:
+        print("[UI] update_local_waves crashed:", repr(e))
+
     finally:
         # ✅ pase lo que pase, el loop sigue vivo
         dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
@@ -391,37 +392,37 @@ def draw_vu_stereo(tag, left_level, right_level, width=40, height=120, segments=
 def load_from_library(deck_prefix):
     global loop_enabled
     loop_enabled = False
-    tracks = get_all_tracks()
-    selected = dpg.get_value("library_list")
+    try:
+        tracks = get_all_tracks()
+        selected = dpg.get_value("library_list")
 
-    if not selected:
-        print("[UI] No track selected")
-        return
+        if not selected:
+            print("[UI] No track selected")
+            return
 
-    titles = [t[2] for t in tracks] 
-    selected_index = titles.index(selected)
+        titles = [t[2] for t in tracks] 
+        selected_index = titles.index(selected)
 
-    track = tracks[selected_index]
-    path = track[1]      
-    title = track[2]     
+        track = tracks[selected_index]
+        path = track[1]      
+        title = track[2]     
 
-    if deck_prefix == "A":
-        dual.deck_a.safe_load(path)
-        draw_global_static(dual.deck_a, "global_wave_A")
-        dpg.set_value("deck_a_title", title)
-        dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
-        update_local_waves()
-        
+        if deck_prefix == "A":
+            dual.deck_a.safe_load(path)
+            draw_global_static(dual.deck_a, "global_wave_A")
+            dpg.set_value("deck_a_title", title)
+            dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
+            update_local_waves()
+            
 
-    else:
-        dual.deck_b.safe_load(path)
-        draw_global_static(dual.deck_b, "global_wave_B")
-        dpg.set_value("deck_b_title", title)
-        dpg.set_value("B_bpm_label", f"{dual.deck_b.bpm:.2f} BPM")
-        update_local_waves()
-        
-        
-    loop_enabled = True
+        else:
+            dual.deck_b.safe_load(path)
+            draw_global_static(dual.deck_b, "global_wave_B")
+            dpg.set_value("deck_b_title", title)
+            dpg.set_value("B_bpm_label", f"{dual.deck_b.bpm:.2f} BPM")
+            update_local_waves()
+    finally:  
+        loop_enabled = True
   
 def reanalyze_track():
     tracks = get_all_tracks()
@@ -701,14 +702,14 @@ def start_ui():
             # DECK A
             # -----------------------------
             with dpg.group(horizontal=True):
-                dpg.add_spacer(width=70)
+             
                 load_a = dpg.add_button(label="Load A", callback=load_track_a)
                 dpg.bind_item_theme(load_a,  "theme_controls_default")
                 play_aa = dpg.add_button(label="play", callback=play_a)
                 dpg.bind_item_theme(play_aa,  "theme_controls_default")
                 pause_aa = dpg.add_button(label="pause", callback=pause_a)
                 dpg.bind_item_theme(pause_aa,  "theme_controls_default")
-                dpg.add_spacer(width=55)
+                dpg.add_spacer(width=135)
                 dpg.add_text("  0.00 BPM  ", tag="A_bpm_label")
                 
             dpg.add_spacer(width=73)
@@ -729,7 +730,7 @@ def start_ui():
             )
             dpg.bind_item_theme("crossfader", fader_theme)
 
-            dpg.add_spacer(width=90)
+            dpg.add_spacer(width=17)
 
             # -----------------------------
             # DECK B
@@ -741,7 +742,7 @@ def start_ui():
                 dpg.bind_item_theme(play_bb,  "theme_controls_default")
                 pause_bb = dpg.add_button(label="pause", callback=pause_b)
                 dpg.bind_item_theme(pause_bb,  "theme_controls_default")
-                dpg.add_spacer(width=73)
+                dpg.add_spacer(width=145)
                 dpg.add_text("0.00 BPM", tag="B_bpm_label")
 
         with dpg.group(horizontal=True):

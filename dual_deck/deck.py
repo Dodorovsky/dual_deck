@@ -206,14 +206,7 @@ class Deck:
         eng = self._audio_engine
         if eng is None or self.cue_position is None:
             return
-
-        bytes_per_frame = eng._sample_width * eng._channels
-
-        # move the actual playback pointer
-        eng._byte_position = int(self.cue_position * bytes_per_frame)
-
-        # update playhead ALWAYS
-        eng._playhead = float(self.cue_position)
+        eng.jump_with_fade(self.cue_position, fade_ms=10)
 
     def cue_play(self):
         self.goto_cue()
@@ -249,10 +242,7 @@ class Deck:
         frame = self.hotcues.get(int(n))
         if frame is None:
             return
-
-        bytes_per_frame = eng._sample_width * eng._channels
-        eng._byte_position = int(frame * bytes_per_frame)
-        eng._playhead = float(frame)
+        eng.jump_with_fade(frame, fade_ms=12)
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):

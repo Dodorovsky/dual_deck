@@ -29,6 +29,15 @@ class AudioEngine:
         self.keylock = False
         self._playhead = 0.0  # position in frames, not bytes
         self._vu = 0.0
+        self._fade_samples_remaining = 0
+        self._fade_total_samples = 0
+        self._fade_mode = None  # "out" | "in"
+        self._pending_jump_frame = None
+        self._pending_jump_frame = None
+
+        self._fade_mode = None              # None | "out" | "in"
+        self._fade_frames_total = 0
+        self._fade_frames_remaining = 0
 
 
     def load(self, file_path):
@@ -200,7 +209,51 @@ class AudioEngine:
                     new_rate,
                     None
                 )
+                
+            # --- CLICKLESS JUMP FADE (int16) ---
+            if self._fade_mode is not None and len(chunk) > 0:
+                frames_in_chunk = len(chunk) // bytes_per_frame
+                if frames_in_chunk > 0:
+                    # reshape to (frames, channels)
+                    audio = np.frombuffer(chunk, dtype=np.int16).reshape(-1, self._channels).astype(np.float32)
 
+                    if self._fade_mode == "out":
+                        # ramp from current level to 0 over remaining frames
+                        n = min(frames_in_chunk, self._fade_frames_remaining)
+                        if n > 0:
+                            ramp = np.linspace(1.0, 0.0, num=n, endpoint=True, dtype=np.float32)[:, None]
+                            audio[:n] *= ramp
+                            self._fade_frames_remaining -= n
+
+                        # When fade-out finished, execute jump and start fade-in
+                        if self._fade_frames_remaining <= 0:
+                            if self._pending_jump_frame is not None:
+                                target = float(self._pending_jump_frame)
+                                self._pending_jump_frame = None
+
+                                # Execute jump (frames -> byte position)
+                                new_byte_pos = int(target * bytes_per_frame)
+                                new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
+                                self._byte_position = new_byte_pos
+                                self._playhead = float(target)
+
+                            self._fade_mode = "in"
+                            self._fade_frames_remaining = self._fade_frames_total
+
+                    elif self._fade_mode == "in":
+                        n = min(frames_in_chunk, self._fade_frames_remaining)
+                        if n > 0:
+                            ramp = np.linspace(0.0, 1.0, num=n, endpoint=True, dtype=np.float32)[:, None]
+                            audio[:n] *= ramp
+                            self._fade_frames_remaining -= n
+
+                        if self._fade_frames_remaining <= 0:
+                            self._fade_mode = None
+
+                    # back to int16 bytes
+                    audio = np.clip(audio, -32768, 32767).astype(np.int16)
+                    chunk = audio.tobytes()
+                
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
             self._vu = min(rms / 32768.0, 1.0)
@@ -221,3 +274,41 @@ class AudioEngine:
 
     def set_keylock(self, enabled: bool):
         self.keylock = enabled
+        
+    def jump_with_fade(self, target_frame: float, fade_ms: int = 10):
+        if self._raw_data is None:
+            return
+
+        # number of frames for fade
+        fade_frames = int((fade_ms / 1000.0) * self._frame_rate)
+        fade_frames = max(1, fade_frames)
+
+        # we save “pending jump”
+        self._pending_jump_frame = float(target_frame)
+
+        # we activate fade out
+        self._fade_mode = "out"
+        self._fade_total_samples = fade_frames
+        self._fade_samples_remaining = fade_frames        
+        
+    def jump_with_fade(self, target_frame: float, fade_ms: int = 10):
+        """
+        Schedule a playback jump with a short fade-out/fade-in to avoid clicks.
+        target_frame is in FRAMES (same unit as _playhead).
+        """
+        if self._raw_data is None:
+            return
+
+        fade_frames = int((fade_ms / 1000.0) * self._frame_rate)
+        fade_frames = max(1, fade_frames)
+
+        self._pending_jump_frame = float(target_frame)
+
+        # Start fade out
+        self._fade_mode = "out"
+        self._fade_frames_total = fade_frames
+        self._fade_frames_remaining = fade_frames
+    
+    
+    
+    
