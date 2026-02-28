@@ -562,6 +562,7 @@ def refresh_loop_markers(deck, tag, width=1120, height=60):
         dpg.draw_rectangle((x1, 0), (x2, height), fill=(80, 80, 80, 40), color=(0,0,0,0), parent=node_tag)
 
 def add_loop_ui(prefix, deck, global_tag):
+    q_tag = f"quantize_{prefix}"
     def on_in():
         deck.set_loop_in()
         refresh_loop_markers(deck, global_tag)
@@ -583,10 +584,14 @@ def add_loop_ui(prefix, deck, global_tag):
         refresh_loop_markers(deck, global_tag)
 
     with dpg.group(horizontal=True):
+        dpg.add_checkbox(label="Q", tag=q_tag, default_value=True,
+                    callback=lambda s,a: setattr(deck, "quantize_enabled", bool(a)))
+
         dpg.add_button(label="IN", width=45, callback=lambda: on_in())
         dpg.add_button(label="OUT", width=45, callback=lambda: on_out())
         dpg.add_button(label="LOOP", width=60, callback=lambda: on_loop())
         dpg.add_button(label="CLR", width=45, callback=lambda: on_clear())
+
 
 def on_global_wave_click(sender, app_data, user_data):
     # user_data será "A" o "B"

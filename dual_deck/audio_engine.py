@@ -285,7 +285,11 @@ class AudioEngine:
                     chunk = audio.tobytes()
                         
             
-
+            frames_in_original = len(original_chunk) // bytes_per_frame
+            if self._loop_enabled and self._loop_in is not None and self._loop_out is not None:
+                if self._loop_out > self._loop_in and self._fade_mode is None:
+                    if (self._playhead + frames_in_original) >= self._loop_out:
+                        self.jump_with_fade(self._loop_in, fade_ms=20)
             # If stop/pause closes the stream, write can throw exception.
             # In that case, we leave the clean loop.
             try:
@@ -304,12 +308,7 @@ class AudioEngine:
                         self.jump_with_fade(self._loop_in, fade_ms=12)
             
             self._byte_position += len(original_chunk)
-            
-            # --- LOOP WRAP ---
-            if self._loop_enabled and self._loop_in is not None and self._loop_out is not None:
-                if self._loop_out > self._loop_in and self._fade_mode is None:
-                    if self._playhead >= self._loop_out:
-                        self.jump_with_fade(self._loop_in, fade_ms=12)
+
 
         self._stop_flag = True
 

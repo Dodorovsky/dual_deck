@@ -28,6 +28,7 @@ class Deck:
         self.loop_in = None      # frame
         self.loop_out = None     # frame
         self.loop_enabled = False
+        self.quantize_enabled = True
 
 
 
@@ -234,7 +235,12 @@ class Deck:
         eng = self._audio_engine
         if eng is None:
             return
-        self.hotcues[int(n)] = float(eng._playhead)
+
+        frame = float(eng._playhead)
+        if self.quantize_enabled:
+            frame = self._quantize_frame_to_beat(frame)
+
+        self.hotcues[int(n)] = frame
 
     def clear_hotcue(self, n: int):
         self.hotcues.pop(int(n), None)
@@ -252,14 +258,20 @@ class Deck:
         eng = self._audio_engine
         if eng is None:
             return
-        self.loop_in = float(eng._playhead)
+        frame = float(eng._playhead)
+        if self.quantize_enabled:
+            frame = self._quantize_frame_to_beat(frame)
+        self.loop_in = frame
         self._sync_loop_to_engine()
 
     def set_loop_out(self):
         eng = self._audio_engine
         if eng is None:
             return
-        self.loop_out = float(eng._playhead)
+        frame = float(eng._playhead)
+        if self.quantize_enabled:
+            frame = self._quantize_frame_to_beat(frame)
+        self.loop_out = frame
         self._sync_loop_to_engine()
 
     def toggle_loop(self):
@@ -283,6 +295,25 @@ class Deck:
         if eng is None:
             return
         eng.set_loop(self.loop_in, self.loop_out, self.loop_enabled)
+
+    def _quantize_frame_to_beat(self, frame: float) -> float:
+        """
+        Quantize a frame position to the nearest beat using deck BPM.
+        Returns a frame (float, but integral-ish).
+        """
+        eng = self._audio_engine
+        if eng is None:
+            return frame
+
+        bpm = getattr(self, "bpm", None)
+        if bpm is None or bpm <= 0:
+            return frame
+
+        frames_per_beat = (eng._frame_rate * 60.0) / float(bpm)
+        if frames_per_beat <= 1:
+            return frame
+
+        return round(frame / frames_per_beat) * frames_per_beat
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
