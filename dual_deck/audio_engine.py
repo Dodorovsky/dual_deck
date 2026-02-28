@@ -183,24 +183,23 @@ class AudioEngine:
         return self._playhead
     
     def jump_with_fade(self, target_frame: float, fade_ms: int = 12):
-        """
-        Schedule a playback jump with a short fade-out/fade-in to avoid clicks.
-        target_frame is in FRAMES (same unit as _playhead).
-        """
         if self._raw_data is None:
             return
 
         fade_frames = int((fade_ms / 1000.0) * self._frame_rate)
         fade_frames = max(1, fade_frames)
 
-        # clamp to track length
         bytes_per_frame = self._sample_width * self._channels
         total_frames = len(self._raw_data) // bytes_per_frame
-        target_frame = max(0.0, min(float(target_frame), float(max(0, total_frames - 1))))
+        if total_frames <= 0:
+            return
 
-        self._pending_jump_frame = float(target_frame)
+        # ✅ cuantiza a frame entero y clamp
+        target_frame = int(round(float(target_frame)))
+        target_frame = max(0, min(target_frame, total_frames - 1))
 
-        # start fade out
+        self._pending_jump_frame = target_frame  # ✅ guarda int
+
         self._fade_mode = "out"
         self._fade_frames_total = fade_frames
         self._fade_frames_remaining = fade_frames
@@ -259,11 +258,11 @@ class AudioEngine:
                         if self._fade_frames_remaining <= 0:
                             # execute jump
                             if self._pending_jump_frame is not None:
-                                target = float(self._pending_jump_frame)
+                                target = self._pending_jump_frame
                                 self._pending_jump_frame = None
 
                                 bytes_per_frame = self._sample_width * self._channels
-                                new_byte_pos = int(target * bytes_per_frame)
+                                new_byte_pos = int(target) * bytes_per_frame  # ✅ múltiplo garantizado
                                 new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
                                 self._byte_position = new_byte_pos
                                 self._playhead = float(target)
@@ -321,3 +320,20 @@ class AudioEngine:
         self._loop_in = None if loop_in is None else float(loop_in)
         self._loop_out = None if loop_out is None else float(loop_out)
         self._loop_enabled = bool(enabled)
+        
+    def seek_ratio(self, ratio: float, fade_ms: int = 12):
+        if self._raw_data is None:
+            return
+        ratio = max(0.0, min(1.0, float(ratio)))
+
+        bytes_per_frame = self._sample_width * self._channels
+        total_frames = len(self._raw_data) // bytes_per_frame
+        if total_frames <= 0:
+            return
+
+        target_frame = ratio * (total_frames - 1)
+        self.jump_with_fade(target_frame, fade_ms=fade_ms)
+        
+        
+        
+        

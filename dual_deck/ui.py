@@ -588,6 +588,28 @@ def add_loop_ui(prefix, deck, global_tag):
         dpg.add_button(label="LOOP", width=60, callback=lambda: on_loop())
         dpg.add_button(label="CLR", width=45, callback=lambda: on_clear())
 
+def on_global_wave_click(sender, app_data, user_data):
+    # user_data será "A" o "B"
+    deck = dual.deck_a if user_data == "A" else dual.deck_b
+    eng = deck._audio_engine
+    if eng is None or eng._raw_data is None:
+        return
+
+    item_tag = "global_wave_A" if user_data == "A" else "global_wave_B"
+
+    mx, my = dpg.get_mouse_pos(local=False)  # coords viewport :contentReference[oaicite:2]{index=2}
+    ix, iy = dpg.get_item_rect_min(item_tag)
+    w, h = dpg.get_item_rect_size(item_tag)
+    if w <= 0:
+        return
+
+    x = mx - ix
+    ratio = max(0.0, min(1.0, x / w))
+
+    # seek con fade
+    eng.seek_ratio(ratio, fade_ms=12)  # o eng.jump_with_fade(...)
+
+
 # -----------------------------
 # Building UI
 # -----------------------------
@@ -686,6 +708,18 @@ def start_ui():
         with dpg.drawlist(width=1120, height=60, tag="global_wave_B"):
             dpg.draw_rectangle((0,0), (1120,60), fill=(0,0,0), color=(0,0,0))
 
+        with dpg.item_handler_registry(tag="global_wave_A_handlers"):
+            dpg.add_item_clicked_handler(callback=on_global_wave_click,
+                                        button=dpg.mvMouseButton_Left,
+                                        user_data="A")
+
+        with dpg.item_handler_registry(tag="global_wave_B_handlers"):
+            dpg.add_item_clicked_handler(callback=on_global_wave_click,
+                                        button=dpg.mvMouseButton_Left,
+                                        user_data="B")
+
+        dpg.bind_item_handler_registry("global_wave_A", "global_wave_A_handlers")
+        dpg.bind_item_handler_registry("global_wave_B", "global_wave_B_handlers")
             
         dpg.add_spacer(height=20)
         # -----------------------------
