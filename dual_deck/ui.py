@@ -117,11 +117,12 @@ def load_track_b():
     dpg.show_item("file_dialog_id")
 
 def play_a():
-    print("[UI] play_a() called")
     dual.deck_a.play()
+    update_local_waves()  # kick in case the loop died earlier
     
 def play_b():
     dual.deck_b.play()
+    update_local_waves()  # kick in case the loop died earlier
     
 def pause_a():
     dual.deck_a.pause()
@@ -252,6 +253,9 @@ def draw_global_static(deck, tag, width=1120, height=60):
     # contenedor para hotcues (solo se crea una vez)
     if not dpg.does_item_exist(f"{tag}_hotcues"):
         dpg.add_draw_node(tag=f"{tag}_hotcues", parent=tag)
+        
+    if not dpg.does_item_exist(f"{tag}_loop"):
+        dpg.add_draw_node(tag=f"{tag}_loop", parent=tag)
     
 def update_global_overlays(deck, tag, width=1120, height=60):
     wf = deck.waveform
@@ -279,24 +283,28 @@ def update_global_overlays(deck, tag, width=1120, height=60):
 
 def update_local_waves():
     try:
+        # Si quieres pausar updates durante cargas, ok:
         if not loop_enabled:
             return
 
-        # LOCAL WAVES
+        # ---- LOCAL WAVES ----
         if dual.deck_a.waveform is not None:
-            draw_local_waveform(dual.deck_a.waveform, dual.deck_a.position, window_size=300, tag="local_wave_A")
+            draw_local_waveform(
+                dual.deck_a.waveform,
+                dual.deck_a.position,
+                window_size=300,
+                tag="local_wave_A"
+            )
 
         if dual.deck_b.waveform is not None:
-            draw_local_waveform(dual.deck_b.waveform, dual.deck_b.position, window_size=300, tag="local_wave_B")
+            draw_local_waveform(
+                dual.deck_b.waveform,
+                dual.deck_b.position,
+                window_size=300,
+                tag="local_wave_B"
+            )
 
-        # OVERLAYS GLOBAL (solo playhead/cue)
-        if dual.deck_a.waveform is not None:
-            update_global_overlays(dual.deck_a, "global_wave_A")
-
-        if dual.deck_b.waveform is not None:
-            update_global_overlays(dual.deck_b, "global_wave_B")
-
-        # VU
+        # ---- VU ----
         vuA = dual.deck_a._audio_engine._vu
         vuB = dual.deck_b._audio_engine._vu
         draw_vu("vu_A", vuA)
@@ -304,11 +312,18 @@ def update_local_waves():
         master = min(1.0, vuA + vuB)
         draw_vu_stereo("vu_master", master, master)
 
+        # ---- GLOBAL overlays (playhead/cue/loop etc) ----
+        if dual.deck_a.waveform is not None:
+            update_global_overlays(dual.deck_a, "global_wave_A")
+
+        if dual.deck_b.waveform is not None:
+            update_global_overlays(dual.deck_b, "global_wave_B")
+
     except Exception as e:
         print("[UI] update_local_waves crashed:", repr(e))
 
     finally:
-        # ✅ pase lo que pase, el loop sigue vivo
+        # ✅ SIEMPRE reprograma, aunque haya return o excepción
         dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
 
 def draw_vu(parent, level, segments=24):
@@ -414,7 +429,6 @@ def load_from_library(deck_prefix):
             dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
             update_local_waves()
             
-
         else:
             dual.deck_b.safe_load(path)
             draw_global_static(dual.deck_b, "global_wave_B")
@@ -512,6 +526,68 @@ def add_hotcue_ui(prefix, deck, global_tag):
     with dpg.group(horizontal=True):
         for n in (1, 2, 3, 4):
             dpg.add_button(label=str(n), width=30, callback=hotcue_pressed, user_data=n)
+
+def refresh_loop_markers(deck, tag, width=1120, height=60):
+    node_tag = f"{tag}_loop"
+    if not dpg.does_item_exist(node_tag):
+        dpg.add_draw_node(tag=node_tag, parent=tag)
+
+    dpg.delete_item(node_tag, children_only=True)
+
+    eng = deck._audio_engine
+    if eng is None or eng._raw_data is None:
+        return
+
+    bytes_per_frame = eng._sample_width * eng._channels
+    total_frames = len(eng._raw_data) // bytes_per_frame
+    if total_frames <= 0:
+        return
+
+    # IN
+    if deck.loop_in is not None:
+        x = (deck.loop_in / total_frames) * width
+        dpg.draw_line((x, 0), (x, height), color=(0, 255, 0), thickness=2, parent=node_tag)
+        dpg.draw_text((x + 2, 2), "IN", color=(0, 255, 0), parent=node_tag)
+
+    # OUT
+    if deck.loop_out is not None:
+        x = (deck.loop_out / total_frames) * width
+        dpg.draw_line((x, 0), (x, height), color=(255, 0, 255), thickness=2, parent=node_tag)
+        dpg.draw_text((x + 2, 2), "OUT", color=(255, 0, 255), parent=node_tag)
+
+    # Estado loop (opcional): un rectángulo tenue entre IN y OUT
+    if deck.loop_enabled and deck.loop_in is not None and deck.loop_out is not None and deck.loop_out > deck.loop_in:
+        x1 = (deck.loop_in / total_frames) * width
+        x2 = (deck.loop_out / total_frames) * width
+        dpg.draw_rectangle((x1, 0), (x2, height), fill=(80, 80, 80, 40), color=(0,0,0,0), parent=node_tag)
+
+def add_loop_ui(prefix, deck, global_tag):
+    def on_in():
+        deck.set_loop_in()
+        refresh_loop_markers(deck, global_tag)
+
+    def on_out():
+        deck.set_loop_out()
+        refresh_loop_markers(deck, global_tag)
+
+    def on_loop():
+        before = deck.loop_enabled
+        deck.toggle_loop()
+        if before == False and deck.loop_enabled == False:
+            # intentó activar pero no pudo
+            print(f"[UI] Loop not enabled on Deck {prefix}: set valid IN/OUT first")
+        refresh_loop_markers(deck, global_tag)
+
+    def on_clear():
+        deck.clear_loop()
+        refresh_loop_markers(deck, global_tag)
+
+    with dpg.group(horizontal=True):
+        dpg.add_button(label="IN", width=45, callback=lambda: on_in())
+        dpg.add_button(label="OUT", width=45, callback=lambda: on_out())
+        dpg.add_button(label="LOOP", width=60, callback=lambda: on_loop())
+        dpg.add_button(label="CLR", width=45, callback=lambda: on_clear())
+
 # -----------------------------
 # Building UI
 # -----------------------------
@@ -626,6 +702,7 @@ def start_ui():
 
                 # ✅ HOTCUES debajo de la onda local
                 add_hotcue_ui("A", dual.deck_a, "global_wave_A")
+                add_loop_ui("A", dual.deck_a, "global_wave_A")
                 
                 
 
@@ -691,6 +768,7 @@ def start_ui():
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
                     pass
                 add_hotcue_ui("B", dual.deck_b, "global_wave_B")
+                add_loop_ui("B", dual.deck_b, "global_wave_B")
             build_pitch_ui("B", dual.deck_b)
             
         # -----------------------------
@@ -712,7 +790,7 @@ def start_ui():
                 dpg.add_spacer(width=135)
                 dpg.add_text("  0.00 BPM  ", tag="A_bpm_label")
                 
-            dpg.add_spacer(width=73)
+            dpg.add_spacer(width=70)
 
             # -----------------------------
             # CROSSFADER
@@ -730,7 +808,7 @@ def start_ui():
             )
             dpg.bind_item_theme("crossfader", fader_theme)
 
-            dpg.add_spacer(width=17)
+            dpg.add_spacer(width=20)
 
             # -----------------------------
             # DECK B

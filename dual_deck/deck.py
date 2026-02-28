@@ -24,6 +24,10 @@ class Deck:
         self.pitch_range = 0.08
         self.waveform = None
         self.hotcues = {}
+        
+        self.loop_in = None      # frame
+        self.loop_out = None     # frame
+        self.loop_enabled = False
 
 
 
@@ -243,6 +247,42 @@ class Deck:
         if frame is None:
             return
         eng.jump_with_fade(frame, fade_ms=12)
+
+    def set_loop_in(self):
+        eng = self._audio_engine
+        if eng is None:
+            return
+        self.loop_in = float(eng._playhead)
+        self._sync_loop_to_engine()
+
+    def set_loop_out(self):
+        eng = self._audio_engine
+        if eng is None:
+            return
+        self.loop_out = float(eng._playhead)
+        self._sync_loop_to_engine()
+
+    def toggle_loop(self):
+        # only activate if there are valid IN/OUT
+        if self.loop_in is None or self.loop_out is None or self.loop_out <= self.loop_in:
+            self.loop_enabled = False
+            self._sync_loop_to_engine()
+            return
+
+        self.loop_enabled = not self.loop_enabled
+        self._sync_loop_to_engine()
+
+    def clear_loop(self):
+        self.loop_in = None
+        self.loop_out = None
+        self.loop_enabled = False
+        self._sync_loop_to_engine()
+        
+    def _sync_loop_to_engine(self):
+        eng = self._audio_engine
+        if eng is None:
+            return
+        eng.set_loop(self.loop_in, self.loop_out, self.loop_enabled)
 
 class DualDeck:
     def __init__(self, audio_engine_cls=None):
