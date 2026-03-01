@@ -402,7 +402,7 @@ class AudioEngine:
             self._filter_mode = "hp"
             # |v| in (0..1): map to cutoff 20 -> 5000 Hz (more |v| = higher cutoff)
             t = abs(v)
-            self._filter_cutoff_hz = 20.0 * ((5000.0 / 20.0) ** t)      
+            self._filter_cutoff_hz = 20.0 * ((2000.0 / 20.0) ** t)      
             
     def reset_filter_state(self):
         self._bx1[:] = 0
@@ -475,7 +475,7 @@ class AudioEngine:
         self._playhead = float(target)
         self._byte_position = int(target * bytes_per_frame)
 
-
+ 
 
 
 

@@ -148,7 +148,6 @@ class Deck:
         except:
             pass
 
-
     @property
     def position(self):
         eng = self._audio_engine
@@ -162,7 +161,6 @@ class Deck:
 
         wf_index = int(len(self.waveform) * eng._playhead / total_frames)
         return max(0, min(wf_index, len(self.waveform) - 1))
-
 
     def play(self):
         print("PLAYING DECK:", self.name, "ENGINE OBJECT:", self._audio_engine)
