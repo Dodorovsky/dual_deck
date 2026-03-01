@@ -592,7 +592,6 @@ def add_loop_ui(prefix, deck, global_tag):
         dpg.add_button(label="LOOP", width=60, callback=lambda: on_loop())
         dpg.add_button(label="CLR", width=45, callback=lambda: on_clear())
 
-
 def on_global_wave_click(sender, app_data, user_data):
     # user_data será "A" o "B"
     deck = dual.deck_a if user_data == "A" else dual.deck_b
@@ -613,6 +612,44 @@ def on_global_wave_click(sender, app_data, user_data):
 
     # seek con fade
     eng.seek_ratio(ratio, fade_ms=12)  # o eng.jump_with_fade(...)
+
+def on_global_mouse_click(sender, app_data):
+    print("[UI] global handler fired")
+    mx, my = dpg.get_mouse_pos(local=False)
+
+    # check A then B
+    for deck, tag in ((dual.deck_a, "global_wave_A"), (dual.deck_b, "global_wave_B")):
+        if not dpg.does_item_exist(tag):
+            continue
+
+        ix, iy = dpg.get_item_rect_min(tag)
+        w, h = dpg.get_item_rect_size(tag)
+        print("[UI] A rect", ix, iy, w, h)
+
+        if w <= 0 or h <= 0:
+            continue
+
+        # hit test
+        if ix <= mx <= ix + w and iy <= my <= iy + h:
+            eng = deck._audio_engine
+            if eng is None or eng._raw_data is None:
+                return
+
+            # x within the drawlist
+            x = mx - ix
+            ratio = x / w
+            ratio = max(0.0, min(1.0, ratio))
+
+            # Seek with fade (frame-aligned inside jump_with_fade)
+            if hasattr(eng, "seek_ratio"):
+                eng.seek_ratio(ratio, fade_ms=12)
+            else:
+                bytes_per_frame = eng._sample_width * eng._channels
+                total_frames = len(eng._raw_data) // bytes_per_frame
+                target = ratio * (total_frames - 1)
+                eng.jump_with_fade(target, fade_ms=12)
+
+            return  # important: only one deck per click
 
 
 # -----------------------------
@@ -700,7 +737,7 @@ def start_ui():
     # -----------------------------
     # GLOBAL WAVEFORM A
     # -----------------------------
-    with dpg.window(label="Dual Deck", width=1150, height=850):
+    with dpg.window(label="Dual Deck", width=1150, height=870, tag="main_window"):
         dpg.add_spacer(height=20)
 
         # GLOBAL A
@@ -743,8 +780,6 @@ def start_ui():
                 add_hotcue_ui("A", dual.deck_a, "global_wave_A")
                 add_loop_ui("A", dual.deck_a, "global_wave_A")
                 
-                
-
             # --- Pitch A ---
             build_pitch_ui("A", dual.deck_a)
 
@@ -861,17 +896,43 @@ def start_ui():
                 dpg.bind_item_theme(pause_bb,  "theme_controls_default")
                 dpg.add_spacer(width=145)
                 dpg.add_text("0.00 BPM", tag="B_bpm_label")
-
+                
         with dpg.group(horizontal=True):
-            dpg.add_spacer(width=530)
-            dpg.add_text("0.50", tag="cross_value")
+                dpg.add_slider_float(
+                    tag="filter_A",
+                    label="FILTER",
+                    default_value=0.0,
+                    min_value=-1.0,
+                    max_value=1.0,
+                    width=120,
+                    format="",
+                    callback=lambda s,a: dual.deck_a._audio_engine.set_filter_knob(a)
+                )
+                dpg.add_spacer(width=355)
+                
+                dpg.add_text("0.50", tag="cross_value")
+                
+                dpg.add_spacer(width=108)
+                
+                dpg.add_slider_float(
+                    tag="filter_B",
+                    label="FILTER B",
+                    default_value=0.0,
+                    min_value=-1.0,
+                    max_value=1.0,
+                    width=120,
+                    format="",
+                    callback=lambda s,a: dual.deck_b._audio_engine.set_filter_knob(a) if dual.deck_b._audio_engine else None
+                )
+        dpg.add_spacer(height=10)
+       
             
         dpg.add_button(label="Reanalyze Selected", callback=reanalyze_track)
 
 
-        with dpg.child_window(label="Library", tag="library_window", width=300, height=400):
+        with dpg.child_window(label="Library", tag="library_window", width=1120, height=400):
 
-            dpg.add_listbox([], tag="library_list", width=280, num_items=15)
+            dpg.add_listbox([], tag="library_list", width=1110, num_items=15)
             dpg.add_button(label="Load to Deck A", callback=lambda: load_from_library("A"))
             dpg.add_button(label="Load to Deck B", callback=lambda: load_from_library("B"))
 
@@ -897,9 +958,16 @@ def start_ui():
     # -----------------------------
     # START DPG
     # -----------------------------
-    dpg.create_viewport(title="Dual Deck", width=1150, height=850)
+    dpg.create_viewport(title="Dual Deck", width=1150, height=870)
     dpg.setup_dearpygui()
+    dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
+    with dpg.handler_registry(tag="global_mouse_handlers"):
+        dpg.add_mouse_click_handler(
+            button=dpg.mvMouseButton_Left,
+            callback=on_global_mouse_click
+        )
+
     update_local_waves()
     dpg.start_dearpygui()
     dpg.destroy_context()
