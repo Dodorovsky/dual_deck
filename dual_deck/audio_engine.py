@@ -280,51 +280,51 @@ class AudioEngine:
                         
 
                         # --- CLICKLESS JUMP FADE (int16) ---
-                        if self._fade_mode is not None and len(chunk) > 0:
-                            # asegurar múltiplo de canales (ratecv puede devolver longitudes raras)
-                            samples_total = len(chunk) // 2  # int16 samples
-                            samples_total -= (samples_total % self._channels)
-                            if samples_total > 0:
-                                audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16)\
-                                        .reshape(-1, self._channels).astype(np.float32)
+            if self._fade_mode is not None and len(chunk) > 0:
+                # asegurar múltiplo de canales (ratecv puede devolver longitudes raras)
+                samples_total = len(chunk) // 2  # int16 samples
+                samples_total -= (samples_total % self._channels)
+                if samples_total > 0:
+                    audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16)\
+                            .reshape(-1, self._channels).astype(np.float32)
 
-                                frames_in_chunk = audio.shape[0]
+                    frames_in_chunk = audio.shape[0]
 
-                                if self._fade_mode == "out":
-                                    n = min(frames_in_chunk, self._fade_frames_remaining)
-                                    if n > 0:
-                                        ramp = np.linspace(1.0, 0.0, num=n, endpoint=True, dtype=np.float32)[:, None]
-                                        audio[:n] *= ramp
-                                        self._fade_frames_remaining -= n
+                    if self._fade_mode == "out":
+                        n = min(frames_in_chunk, self._fade_frames_remaining)
+                        if n > 0:
+                            ramp = np.linspace(1.0, 0.0, num=n, endpoint=True, dtype=np.float32)[:, None]
+                            audio[:n] *= ramp
+                            self._fade_frames_remaining -= n
 
-                                    if self._fade_frames_remaining <= 0:
-                                        # execute jump
-                                        if self._pending_jump_frame is not None:
-                                            target = self._pending_jump_frame
-                                            self._pending_jump_frame = None
+                        if self._fade_frames_remaining <= 0:
+                            # execute jump
+                            if self._pending_jump_frame is not None:
+                                target = self._pending_jump_frame
+                                self._pending_jump_frame = None
 
-                                            bytes_per_frame = self._sample_width * self._channels
-                                            new_byte_pos = int(target) * bytes_per_frame  # ✅ múltiplo garantizado
-                                            new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
-                                            self._byte_position = new_byte_pos
-                                            self._playhead = float(target)
+                                bytes_per_frame = self._sample_width * self._channels
+                                new_byte_pos = int(target) * bytes_per_frame  # ✅ múltiplo garantizado
+                                new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
+                                self._byte_position = new_byte_pos
+                                self._playhead = float(target)
 
-                                        # start fade in
-                                        self._fade_mode = "in"
-                                        self._fade_frames_remaining = self._fade_frames_total
+                            # start fade in
+                            self._fade_mode = "in"
+                            self._fade_frames_remaining = self._fade_frames_total
 
-                                elif self._fade_mode == "in":
-                                    n = min(frames_in_chunk, self._fade_frames_remaining)
-                                    if n > 0:
-                                        ramp = np.linspace(0.0, 1.0, num=n, endpoint=True, dtype=np.float32)[:, None]
-                                        audio[:n] *= ramp
-                                        self._fade_frames_remaining -= n
+                    elif self._fade_mode == "in":
+                        n = min(frames_in_chunk, self._fade_frames_remaining)
+                        if n > 0:
+                            ramp = np.linspace(0.0, 1.0, num=n, endpoint=True, dtype=np.float32)[:, None]
+                            audio[:n] *= ramp
+                            self._fade_frames_remaining -= n
 
-                                    if self._fade_frames_remaining <= 0:
-                                        self._fade_mode = None
+                        if self._fade_frames_remaining <= 0:
+                            self._fade_mode = None
 
-                                audio = np.clip(audio, -32768, 32767).astype(np.int16)
-                                chunk = audio.tobytes()
+                    audio = np.clip(audio, -32768, 32767).astype(np.int16)
+                    chunk = audio.tobytes()
                         
             
             frames_in_original = len(original_chunk) // bytes_per_frame
