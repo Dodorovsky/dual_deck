@@ -624,7 +624,6 @@ def on_global_mouse_click(sender, app_data):
 
         ix, iy = dpg.get_item_rect_min(tag)
         w, h = dpg.get_item_rect_size(tag)
-        print("[UI] A rect", ix, iy, w, h)
 
         if w <= 0 or h <= 0:
             continue
@@ -779,9 +778,34 @@ def start_ui():
                 # ✅ HOTCUES debajo de la onda local
                 add_hotcue_ui("A", dual.deck_a, "global_wave_A")
                 add_loop_ui("A", dual.deck_a, "global_wave_A")
+                dpg.add_slider_float(
+                    tag="filter_A",
+                    label="HP/LP",
+                    default_value=0.0,
+                    min_value=-1.0,
+                    max_value=1.0,
+                    width=260,
+                    format="",
+                    callback=lambda s,a: dual.deck_a._audio_engine.set_filter_knob(a)
+                )
+                dpg.bind_item_theme("filter_A", fader_theme)
+                # -----------------------------
+                # DECK A
+                # -----------------------------
+                with dpg.group(horizontal=True):
+                
+                    load_a = dpg.add_button(label="Load A", callback=load_track_a)
+                    dpg.bind_item_theme(load_a,  "theme_controls_default")
+                    play_aa = dpg.add_button(label="play", callback=play_a)
+                    dpg.bind_item_theme(play_aa,  "theme_controls_default")
+                    pause_aa = dpg.add_button(label="pause", callback=pause_a)
+                    dpg.bind_item_theme(pause_aa,  "theme_controls_default")
+                    dpg.add_spacer(width=135)
                 
             # --- Pitch A ---
-            build_pitch_ui("A", dual.deck_a)
+            with dpg.group():
+                build_pitch_ui("A", dual.deck_a)
+                dpg.add_text("0.00 BPM", tag="A_bpm_label")
 
             dpg.add_spacer(width=20)
 
@@ -790,49 +814,72 @@ def start_ui():
             # ============================================
 
             # Volume A (glued below)
+            
             with dpg.group():
                 
-                dpg.add_spacer(height=20)  
-                dpg.add_slider_float(
-                    tag="vol_A",
-                    label="",
-                    default_value=1.0,
-                    min_value=0.0,
-                    max_value=1.0,
-                    height=120,
-                    vertical=True,
-                    format="",
-                    callback=lambda s, a: dual.deck_a.set_volume(a)
-                )
-            dpg.bind_item_theme("vol_A", pioneer_fader)
-
-            dpg.add_spacer(width=15)
-
-            # VU A / MASTER / VU B (glued below)
-            with dpg.group():
-                dpg.add_spacer(height=20)
                 with dpg.group(horizontal=True):
-                    dpg.add_drawlist(tag="vu_A", width=20, height=120)
-                    dpg.add_drawlist(tag="vu_master", width=40, height=120)
-                    dpg.add_drawlist(tag="vu_B", width=20, height=120)
+                    with dpg.group():
+                        dpg.add_spacer(height=20)  
+                        dpg.add_slider_float(
+                            tag="vol_A",
+                            label="",
+                            default_value=1.0,
+                            min_value=0.0,
+                            max_value=1.0,
+                            height=120,
+                            vertical=True,
+                            format="",
+                            callback=lambda s, a: dual.deck_a.set_volume(a)
+                        )
+                        dpg.bind_item_theme("vol_A", pioneer_fader)
 
-            dpg.add_spacer(width=15)
+                    dpg.add_spacer(width=15)
 
-            # Volume B (glued below)
-            with dpg.group():
-                dpg.add_spacer(height=20)
+                    # VU A / MASTER / VU B (glued below)
+                    with dpg.group():
+                        dpg.add_spacer(height=20)
+                        with dpg.group(horizontal=True):
+                            dpg.add_drawlist(tag="vu_A", width=20, height=120)
+                            dpg.add_drawlist(tag="vu_master", width=40, height=120)
+                            dpg.add_drawlist(tag="vu_B", width=20, height=120)
+
+                    dpg.add_spacer(width=15)
+
+                    # Volume B (glued below)
+                    with dpg.group():
+                        dpg.add_spacer(height=20)
+                        dpg.add_slider_float(
+                            tag="vol_B",
+                            label="",
+                            default_value=1.0,
+                            min_value=0.0,
+                            max_value=1.0,
+                            height=120,
+                            vertical=True,
+                            format="",
+                            callback=lambda s, a: dual.deck_b.set_volume(a)
+                        )
+                        dpg.bind_item_theme("vol_B", pioneer_fader)
+                        
+                    # -----------------------------
+                # CROSSFADER
+                # -----------------------------
+                dpg.add_spacer(width=10)
                 dpg.add_slider_float(
-                    tag="vol_B",
+                    tag="crossfader",
                     label="",
-                    default_value=1.0,
+                    default_value=0.5,
                     min_value=0.0,
                     max_value=1.0,
-                    height=120,
-                    vertical=True,
+                    width=198,
                     format="",
-                    callback=lambda s, a: dual.deck_b.set_volume(a)
+                    callback=crossfader_callback,
+                    
                 )
-                dpg.bind_item_theme("vol_B", pioneer_fader)
+                dpg.bind_item_theme("crossfader", fader_theme)
+                with dpg.group(horizontal=True):
+                    dpg.add_spacer(width=80)
+                    dpg.add_text("0.50", tag="cross_value")
 
             dpg.add_spacer(width=20)
             with dpg.group():
@@ -841,94 +888,40 @@ def start_ui():
                 with dpg.drawlist(width=300, height=60, tag="local_wave_B"):
                     dpg.draw_rectangle((0, 0), (300, 60), fill=(0, 0, 0), color=(0,0,0))
                     pass
+
                 add_hotcue_ui("B", dual.deck_b, "global_wave_B")
                 add_loop_ui("B", dual.deck_b, "global_wave_B")
-            build_pitch_ui("B", dual.deck_b)
-            
-        # -----------------------------
-        # DECK CONTROLS (A y B)
-        # -----------------------------
-        with dpg.group(horizontal=True):
-
-            # -----------------------------
-            # DECK A
-            # -----------------------------
-            with dpg.group(horizontal=True):
-             
-                load_a = dpg.add_button(label="Load A", callback=load_track_a)
-                dpg.bind_item_theme(load_a,  "theme_controls_default")
-                play_aa = dpg.add_button(label="play", callback=play_a)
-                dpg.bind_item_theme(play_aa,  "theme_controls_default")
-                pause_aa = dpg.add_button(label="pause", callback=pause_a)
-                dpg.bind_item_theme(pause_aa,  "theme_controls_default")
-                dpg.add_spacer(width=135)
-                dpg.add_text("  0.00 BPM  ", tag="A_bpm_label")
-                
-            dpg.add_spacer(width=70)
-
-            # -----------------------------
-            # CROSSFADER
-            # -----------------------------
-            dpg.add_slider_float(
-                tag="crossfader",
-                label="",
-                default_value=0.5,
-                min_value=0.0,
-                max_value=1.0,
-                width=198,
-                format="",
-                callback=crossfader_callback,
-                
-            )
-            dpg.bind_item_theme("crossfader", fader_theme)
-
-            dpg.add_spacer(width=20)
-
-            # -----------------------------
-            # DECK B
-            # -----------------------------
-            with dpg.group(horizontal=True):
-                load_bb = dpg.add_button(label="Load B", callback=load_track_b)
-                dpg.bind_item_theme(load_bb,  "theme_controls_default")
-                play_bb = dpg.add_button(label="play", callback=play_b)
-                dpg.bind_item_theme(play_bb,  "theme_controls_default")
-                pause_bb = dpg.add_button(label="pause", callback=pause_b)
-                dpg.bind_item_theme(pause_bb,  "theme_controls_default")
-                dpg.add_spacer(width=145)
-                dpg.add_text("0.00 BPM", tag="B_bpm_label")
-                
-        with dpg.group(horizontal=True):
-                dpg.add_slider_float(
-                    tag="filter_A",
-                    label="FILTER",
-                    default_value=0.0,
-                    min_value=-1.0,
-                    max_value=1.0,
-                    width=120,
-                    format="",
-                    callback=lambda s,a: dual.deck_a._audio_engine.set_filter_knob(a)
-                )
-                dpg.add_spacer(width=355)
-                
-                dpg.add_text("0.50", tag="cross_value")
-                
-                dpg.add_spacer(width=108)
-                
                 dpg.add_slider_float(
                     tag="filter_B",
-                    label="FILTER B",
+                    label="HP/LP",
                     default_value=0.0,
                     min_value=-1.0,
                     max_value=1.0,
-                    width=120,
+                    width=260,
                     format="",
                     callback=lambda s,a: dual.deck_b._audio_engine.set_filter_knob(a) if dual.deck_b._audio_engine else None
                 )
+                dpg.bind_item_theme("filter_B", fader_theme)
+                
+                # -----------------------------
+                # DECK B
+                # -----------------------------
+                with dpg.group(horizontal=True):
+                    load_bb = dpg.add_button(label="Load B", callback=load_track_b)
+                    dpg.bind_item_theme(load_bb,  "theme_controls_default")
+                    play_bb = dpg.add_button(label="play", callback=play_b)
+                    dpg.bind_item_theme(play_bb,  "theme_controls_default")
+                    pause_bb = dpg.add_button(label="pause", callback=pause_b)
+                    dpg.bind_item_theme(pause_bb,  "theme_controls_default")
+                    dpg.add_spacer(width=145)
+                
+            with dpg.group():
+                build_pitch_ui("B", dual.deck_b)
+                dpg.add_text("0.00 BPM", tag="B_bpm_label")
+                
         dpg.add_spacer(height=10)
-       
-            
+         
         dpg.add_button(label="Reanalyze Selected", callback=reanalyze_track)
-
 
         with dpg.child_window(label="Library", tag="library_window", width=1120, height=400):
 
@@ -952,6 +945,7 @@ def start_ui():
     ):
         dpg.add_file_extension(".mp3", color=(0, 255, 0, 255))
         dpg.add_file_extension(".wav", color=(0, 200, 255, 255))
+        dpg.add_file_extension(".flac", color=(255, 150, 0, 255))
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
     
 

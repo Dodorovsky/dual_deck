@@ -262,7 +262,7 @@ class AudioEngine:
                         audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16)\
                                 .reshape(-1, self._channels).astype(np.float32)
 
-                        # aplicar biquad por canal (simple y estable)
+                        # apply biquad per channel (simple and stable)
                         for ch in range(self._channels):
                             x1 = self._bx1[ch]; x2 = self._bx2[ch]
                             y1 = self._by1[ch]; y2 = self._by2[ch]
@@ -281,7 +281,7 @@ class AudioEngine:
 
                         # --- CLICKLESS JUMP FADE (int16) ---
             if self._fade_mode is not None and len(chunk) > 0:
-                # asegurar múltiplo de canales (ratecv puede devolver longitudes raras)
+                # secure multiple channels (ratecv can return rare lengths)
                 samples_total = len(chunk) // 2  # int16 samples
                 samples_total -= (samples_total % self._channels)
                 if samples_total > 0:
