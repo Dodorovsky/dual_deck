@@ -5,15 +5,12 @@ from dual_deck.deck import DualDeck
 from dual_deck.waveform import draw_local_waveform
 from dual_deck.library import get_all_tracks, delete_track_from_library
 
-
 dual = DualDeck(audio_engine_cls=AudioEngine)
 
 current_load_target = None   # "A" or "B"
 current_slider_value = 0.0
 current_pitch_range = 0.08
 loop_enabled = True
-
-
 
 def update_pitch_range_buttons(prefix, selected):
     dpg.bind_item_theme(f"btn_8_{prefix}",  "theme_button_default")
@@ -54,7 +51,7 @@ def build_pitch_ui(prefix, deck):
     slider_tag = f"pitch_slider_{prefix}"
     #  = f"pitch_label_{prefix}"
     bpm_tag    = f"bpm_label_{prefix}"
-
+    
     def update_display():
         if not dpg.does_item_exist(bpm_tag):
             return  # el label aún no existe, evitar error
@@ -283,7 +280,6 @@ def update_global_overlays(deck, tag, width=1120, height=60):
 
 def update_local_waves():
     try:
-        # Si quieres pausar updates durante cargas, ok:
         if not loop_enabled:
             return
 
@@ -323,7 +319,7 @@ def update_local_waves():
         print("[UI] update_local_waves crashed:", repr(e))
 
     finally:
-        # ✅ SIEMPRE reprograma, aunque haya return o excepción
+        # ALWAYS reschedule, even if there is a return or exception
         dpg.set_frame_callback(dpg.get_frame_count() + 2, update_local_waves)
 
 def draw_vu(parent, level, segments=24):
@@ -575,7 +571,7 @@ def add_loop_ui(prefix, deck, global_tag):
         before = deck.loop_enabled
         deck.toggle_loop()
         if before == False and deck.loop_enabled == False:
-            # intentó activar pero no pudo
+            # tried to activate but couldn't because IN/OUT are not valid
             print(f"[UI] Loop not enabled on Deck {prefix}: set valid IN/OUT first")
         refresh_loop_markers(deck, global_tag)
 
@@ -736,14 +732,12 @@ def start_ui():
     # -----------------------------
     # GLOBAL WAVEFORM A
     # -----------------------------
-    with dpg.window(label="Dual Deck", width=1150, height=870, tag="main_window"):
+    with dpg.window(label="Dual Deck", width=1150, height=840, tag="main_window"):
         dpg.add_spacer(height=20)
 
         # GLOBAL A
         with dpg.drawlist(width=1120, height=60, tag="global_wave_A"):
             dpg.draw_rectangle((0,0), (1120,60), fill=(0,0,0), color=(0,0,0))
-
-        dpg.add_spacer(height=10)
 
         # GLOBAL B
         with dpg.drawlist(width=1120, height=60, tag="global_wave_B"):
@@ -762,7 +756,7 @@ def start_ui():
         dpg.bind_item_handler_registry("global_wave_A", "global_wave_A_handlers")
         dpg.bind_item_handler_registry("global_wave_B", "global_wave_B_handlers")
             
-        dpg.add_spacer(height=20)
+        dpg.add_spacer(height=10)
         # -----------------------------
         # LOCAL WAVES
         # -----------------------------
@@ -780,15 +774,16 @@ def start_ui():
                 add_loop_ui("A", dual.deck_a, "global_wave_A")
                 dpg.add_slider_float(
                     tag="filter_A",
-                    label="HP/LP",
+                    label=" HP/LP",
                     default_value=0.0,
                     min_value=-1.0,
                     max_value=1.0,
-                    width=260,
+                    width=208,
                     format="",
                     callback=lambda s,a: dual.deck_a._audio_engine.set_filter_knob(a)
                 )
                 dpg.bind_item_theme("filter_A", fader_theme)
+                dpg.add_spacer(height=5)
                 # -----------------------------
                 # DECK A
                 # -----------------------------
@@ -806,7 +801,10 @@ def start_ui():
             with dpg.group():
                 build_pitch_ui("A", dual.deck_a)
                 dpg.add_text("0.00 BPM", tag="A_bpm_label")
-
+                
+           
+                
+            
             dpg.add_spacer(width=20)
 
             # ============================================
@@ -831,7 +829,7 @@ def start_ui():
                             format="",
                             callback=lambda s, a: dual.deck_a.set_volume(a)
                         )
-                        dpg.bind_item_theme("vol_A", pioneer_fader)
+                        dpg.bind_item_theme("vol_A", fader_theme)
 
                     dpg.add_spacer(width=15)
 
@@ -859,7 +857,7 @@ def start_ui():
                             format="",
                             callback=lambda s, a: dual.deck_b.set_volume(a)
                         )
-                        dpg.bind_item_theme("vol_B", pioneer_fader)
+                        dpg.bind_item_theme("vol_B", fader_theme)
                         
                     # -----------------------------
                 # CROSSFADER
@@ -893,15 +891,16 @@ def start_ui():
                 add_loop_ui("B", dual.deck_b, "global_wave_B")
                 dpg.add_slider_float(
                     tag="filter_B",
-                    label="HP/LP",
+                    label=" HP/LP",
                     default_value=0.0,
                     min_value=-1.0,
                     max_value=1.0,
-                    width=260,
+                    width=208,
                     format="",
                     callback=lambda s,a: dual.deck_b._audio_engine.set_filter_knob(a) if dual.deck_b._audio_engine else None
                 )
                 dpg.bind_item_theme("filter_B", fader_theme)
+                dpg.add_spacer(height=5)
                 
                 # -----------------------------
                 # DECK B
@@ -923,11 +922,12 @@ def start_ui():
          
         dpg.add_button(label="Reanalyze Selected", callback=reanalyze_track)
 
-        with dpg.child_window(label="Library", tag="library_window", width=1120, height=400):
+        with dpg.child_window(label="Library", tag="library_window", width=1120, height=320):
 
             dpg.add_listbox([], tag="library_list", width=1110, num_items=15)
-            dpg.add_button(label="Load to Deck A", callback=lambda: load_from_library("A"))
-            dpg.add_button(label="Load to Deck B", callback=lambda: load_from_library("B"))
+            with dpg.group(horizontal=True):    
+                dpg.add_button(label="Load to Deck A", callback=lambda: load_from_library("A"))
+                dpg.add_button(label="Load to Deck B", callback=lambda: load_from_library("B"))
 
         refresh_library_ui()
 
@@ -952,7 +952,7 @@ def start_ui():
     # -----------------------------
     # START DPG
     # -----------------------------
-    dpg.create_viewport(title="Dual Deck", width=1150, height=870)
+    dpg.create_viewport(title="Dual Deck", width=1150, height=840)
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()

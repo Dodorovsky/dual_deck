@@ -18,17 +18,18 @@ class AudioEngine:
         self._volume = 1.0
         self._pitch = 1.0
         self.pitch_range = 0.08   # ±8% by default
+        self.keylock = False
 
         self._byte_position = 0
         self.state = "stopped"
-
         self._pyaudio = pyaudio.PyAudio()
         self._stream = None
         self._thread = None
         self._stop_flag = False
-        self.keylock = False
         self._playhead = 0.0  # position in frames, not bytes
+        
         self._vu = 0.0
+        
         self._loop_in = None
         self._loop_out = None
         self._loop_enabled = False
@@ -96,26 +97,6 @@ class AudioEngine:
         self._thread = threading.Thread(target=self._play_loop, daemon=True, name="AudioEngineThread")
         self._thread.start()
             
-    def pause(self):
-        if self.state != "playing":
-            return
-
-        self._stop_flag = True
-        self.state = "paused"
-
-        t = self._thread
-        if t is not None and t.is_alive() and t is not threading.current_thread():
-            t.join()
-        self._thread = None
-
-        if self._stream is not None:
-            try:
-                self._stream.stop_stream()
-                self._stream.close()
-            except Exception:
-                pass
-            self._stream = None
-      
     def pause(self):
         if self.state != "playing":
             return
@@ -220,6 +201,7 @@ class AudioEngine:
     def _play_loop(self):
         chunk_frames = 1024
         bytes_per_frame = self._sample_width * self._channels
+        loop_fade_ms = 20
 
         while not self._stop_flag and self._byte_position < len(self._raw_data):
             start = self._byte_position
@@ -231,9 +213,15 @@ class AudioEngine:
             if len(chunk) == 0:
                 break
 
+            # -------------------------
+            # DSP: volume
+            # -------------------------
             if self._volume != 1.0:
                 chunk = audioop.mul(chunk, self._sample_width, self._volume)
 
+            # -------------------------
+            # DSP: pitch (rate conversion)
+            # -------------------------
             if self._pitch != 1.0:
                 new_rate = int(self._frame_rate / self._pitch)
                 chunk, _ = audioop.ratecv(
@@ -245,12 +233,16 @@ class AudioEngine:
                     None
                 )
 
+            # -------------------------
+            # Metering (VU) from post-DSP chunk
+            # -------------------------
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(samples**2))
             self._vu = min(rms / 32768.0, 1.0)
-            
-            
-            # --- DJ FILTER (one-pole IIR, per-channel) ---
+
+            # -------------------------
+            # DJ Filter (biquad) - only if active
+            # -------------------------
             if self._filter_mode is not None and self._filter_cutoff_hz > 0:
                 coeffs = self._biquad_coeffs(self._filter_mode, self._filter_cutoff_hz, q=0.707)
                 if coeffs is not None:
@@ -259,10 +251,9 @@ class AudioEngine:
                     samples_total = len(chunk) // 2
                     samples_total -= (samples_total % self._channels)
                     if samples_total > 0:
-                        audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16)\
+                        audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16) \
                                 .reshape(-1, self._channels).astype(np.float32)
 
-                        # apply biquad per channel (simple and stable)
                         for ch in range(self._channels):
                             x1 = self._bx1[ch]; x2 = self._bx2[ch]
                             y1 = self._by1[ch]; y2 = self._by2[ch]
@@ -277,15 +268,15 @@ class AudioEngine:
 
                         audio = np.clip(audio, -32768, 32767).astype(np.int16)
                         chunk = audio.tobytes()
-                        
 
-                        # --- CLICKLESS JUMP FADE (int16) ---
+            # -------------------------
+            # Clickless jump fade (always available, independent of filter)
+            # -------------------------
             if self._fade_mode is not None and len(chunk) > 0:
-                # secure multiple channels (ratecv can return rare lengths)
-                samples_total = len(chunk) // 2  # int16 samples
+                samples_total = len(chunk) // 2
                 samples_total -= (samples_total % self._channels)
                 if samples_total > 0:
-                    audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16)\
+                    audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16) \
                             .reshape(-1, self._channels).astype(np.float32)
 
                     frames_in_chunk = audio.shape[0]
@@ -298,18 +289,15 @@ class AudioEngine:
                             self._fade_frames_remaining -= n
 
                         if self._fade_frames_remaining <= 0:
-                            # execute jump
                             if self._pending_jump_frame is not None:
                                 target = self._pending_jump_frame
                                 self._pending_jump_frame = None
 
-                                bytes_per_frame = self._sample_width * self._channels
-                                new_byte_pos = int(target) * bytes_per_frame  # ✅ múltiplo garantizado
+                                new_byte_pos = int(target) * bytes_per_frame
                                 new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
                                 self._byte_position = new_byte_pos
                                 self._playhead = float(target)
 
-                            # start fade in
                             self._fade_mode = "in"
                             self._fade_frames_remaining = self._fade_frames_total
 
@@ -325,32 +313,31 @@ class AudioEngine:
 
                     audio = np.clip(audio, -32768, 32767).astype(np.int16)
                     chunk = audio.tobytes()
-                        
-            
+
+            # -------------------------
+            # Loop wrap (predictive, single source of truth)
+            # -------------------------
             frames_in_original = len(original_chunk) // bytes_per_frame
             if self._loop_enabled and self._loop_in is not None and self._loop_out is not None:
                 if self._loop_out > self._loop_in and self._fade_mode is None:
                     if (self._playhead + frames_in_original) >= self._loop_out:
-                        self.jump_with_fade(self._loop_in, fade_ms=20)
-            # If stop/pause closes the stream, write can throw exception.
-            # In that case, we leave the clean loop.
+                        self.jump_with_fade(self._loop_in, fade_ms=loop_fade_ms)
+
+            # -------------------------
+            # Write audio
+            # -------------------------
             try:
                 self._stream.write(chunk)
             except Exception as e:
                 print("[audio] stream.write error:", e)
                 break
 
-            frames_played = len(original_chunk) // bytes_per_frame
+            # -------------------------
+            # Advance playhead/byte position (based on original chunk)
+            # -------------------------
+            frames_played = frames_in_original
             self._playhead += frames_played
-            
-            # loop wrap (if configured by deck via engine properties)
-            if self._loop_enabled and self._loop_in is not None and self._loop_out is not None:
-                if self._loop_out > self._loop_in and self._fade_mode is None:
-                    if self._playhead >= self._loop_out:
-                        self.jump_with_fade(self._loop_in, fade_ms=12)
-            
             self._byte_position += len(original_chunk)
-
 
         self._stop_flag = True
 
