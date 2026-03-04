@@ -445,7 +445,7 @@ def load_from_library(deck_prefix):
     try:
         idx = library_display.index(selected)
     except ValueError:
-        # la lista cambió, refrescamos y salimos
+        # the list changed, we refreshed and left
         refresh_library_ui()
         loop_enabled = True
         return
@@ -454,7 +454,7 @@ def load_from_library(deck_prefix):
     path = track[1]
     title = track[2]
 
-    # si falta el archivo, no intentes cargarlo
+    # if the file is missing, don't try to upload it
     if not Path(path).exists():
         print("[UI] Missing file:", path)
         loop_enabled = True
