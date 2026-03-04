@@ -29,7 +29,7 @@ class Deck:
         self.loop_out = None     # frame
         self.loop_enabled = False
         self.quantize_enabled = True
-
+        
 
 
     # --- Initial state ---

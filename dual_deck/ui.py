@@ -610,17 +610,14 @@ def on_global_wave_click(sender, app_data, user_data):
     eng.seek_ratio(ratio, fade_ms=12)  # o eng.jump_with_fade(...)
 
 def on_global_mouse_click(sender, app_data):
-    print("[UI] global handler fired")
     mx, my = dpg.get_mouse_pos(local=False)
 
-    # check A then B
     for deck, tag in ((dual.deck_a, "global_wave_A"), (dual.deck_b, "global_wave_B")):
         if not dpg.does_item_exist(tag):
             continue
 
         ix, iy = dpg.get_item_rect_min(tag)
         w, h = dpg.get_item_rect_size(tag)
-
         if w <= 0 or h <= 0:
             continue
 
@@ -630,22 +627,31 @@ def on_global_mouse_click(sender, app_data):
             if eng is None or eng._raw_data is None:
                 return
 
-            # x within the drawlist
             x = mx - ix
             ratio = x / w
             ratio = max(0.0, min(1.0, ratio))
 
-            # Seek with fade (frame-aligned inside jump_with_fade)
-            if hasattr(eng, "seek_ratio"):
-                eng.seek_ratio(ratio, fade_ms=12)
-            else:
-                bytes_per_frame = eng._sample_width * eng._channels
-                total_frames = len(eng._raw_data) // bytes_per_frame
-                target = ratio * (total_frames - 1)
-                eng.jump_with_fade(target, fade_ms=12)
+            fade = 12 if eng.is_actually_playing() else 0
 
-            return  # important: only one deck per click
+            print(
+                "[seek]",
+                "tag=", tag,
+                "state=", eng.state,
+                "stop=", eng._stop_flag,
+                "thread_alive=", (eng._thread is not None and eng._thread.is_alive()),
+                "stream_none=", (eng._stream is None),
+                "fade=", fade,
+                "ratio=", round(ratio, 4),
+            )
 
+            eng.seek_ratio(ratio, fade_ms=fade)
+
+            # ✅ fuerza redraw en el siguiente frame para que el playhead se vea moverse en pausa
+            dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
+
+            return  # importante: solo un deck por click
+
+    # click fuera de las waves globales: no hacemos nada
 
 # -----------------------------
 # Building UI

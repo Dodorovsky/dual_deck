@@ -50,8 +50,9 @@ class AudioEngine:
         self._bx2 = np.zeros(self._channels, dtype=np.float32)
         self._by1 = np.zeros(self._channels, dtype=np.float32)
         self._by2 = np.zeros(self._channels, dtype=np.float32)
-
         
+        self._transport_lock = threading.Lock()
+        self._seek_request = None  # tuple(frame:int, fade_ms:int)
         
     def load(self, file_path):
 
@@ -102,6 +103,14 @@ class AudioEngine:
             return
 
         self._stop_flag = True
+        
+        with self._transport_lock:
+            self._seek_request = None
+            self._pending_jump_frame = None
+            self._fade_mode = None
+            self._fade_frames_remaining = 0
+            self._fade_frames_total = 0
+                
         self.state = "paused"
 
         t = self._thread
@@ -141,6 +150,14 @@ class AudioEngine:
             return
 
         self._stop_flag = True
+        
+        with self._transport_lock:
+            self._seek_request = None
+            self._pending_jump_frame = None
+            self._fade_mode = None
+            self._fade_frames_remaining = 0
+            self._fade_frames_total = 0
+                
         self.state = "stopped"
 
         t = self._thread
@@ -198,148 +215,219 @@ class AudioEngine:
         self._fade_frames_total = fade_frames
         self._fade_frames_remaining = fade_frames
 
+    def _int16_bytes_to_audio(self, chunk: bytes):
+        """bytes -> np.float32 shaped (frames, channels) and frames count."""
+        samples_total = len(chunk) // 2  # int16 samples
+        samples_total -= (samples_total % self._channels)
+        if samples_total <= 0:
+            return None
+        audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16) \
+                .reshape(-1, self._channels).astype(np.float32)
+        return audio
+
+    def _audio_to_int16_bytes(self, audio: np.ndarray) -> bytes:
+        """np.float32 (frames, channels) -> int16 bytes"""
+        audio = np.clip(audio, -32768, 32767).astype(np.int16)
+        return audio.tobytes()
+
+    def _apply_volume(self, chunk: bytes) -> bytes:
+        if self._volume != 1.0:
+            return audioop.mul(chunk, self._sample_width, self._volume)
+        return chunk
+    
+    def _apply_pitch(self, chunk: bytes) -> bytes:
+        if self._pitch == 1.0:
+            return chunk
+
+        new_rate = int(self._frame_rate / self._pitch)
+        pitched, _ = audioop.ratecv(
+            chunk,
+            self._sample_width,
+            self._channels,
+            self._frame_rate,
+            new_rate,
+            None
+        )
+        return pitched
+    
+    def _update_vu(self, chunk: bytes) -> None:
+        # chunk es int16 interleaved
+        samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
+        if samples.size == 0:
+            self._vu = 0.0
+            return
+        rms = np.sqrt(np.mean(samples ** 2))
+        self._vu = min(rms / 32768.0, 1.0)
+        
+    def _apply_filter(self, chunk: bytes) -> bytes:
+        if self._filter_mode is None or self._filter_cutoff_hz <= 0:
+            return chunk
+
+        coeffs = self._biquad_coeffs(self._filter_mode, self._filter_cutoff_hz, q=0.707)
+        if coeffs is None:
+            return chunk
+
+        audio = self._int16_bytes_to_audio(chunk)
+        if audio is None:
+            return chunk
+
+        b0, b1, b2, a1, a2 = coeffs
+
+        for ch in range(self._channels):
+            x1 = self._bx1[ch]; x2 = self._bx2[ch]
+            y1 = self._by1[ch]; y2 = self._by2[ch]
+
+            for i in range(audio.shape[0]):
+                x0 = audio[i, ch]
+                y0 = b0*x0 + b1*x1 + b2*x2 - a1*y1 - a2*y2
+                audio[i, ch] = y0
+                x2, x1 = x1, x0
+                y2, y1 = y1, y0
+
+            self._bx1[ch], self._bx2[ch] = x1, x2
+            self._by1[ch], self._by2[ch] = y1, y2
+
+        return self._audio_to_int16_bytes(audio)
+        
+    def _apply_fade_and_jump(self, chunk: bytes):
+        if self._fade_mode is None or len(chunk) == 0:
+            return chunk, False
+
+        audio = self._int16_bytes_to_audio(chunk)
+        if audio is None:
+            return chunk, False
+
+        frames_in_chunk = audio.shape[0]
+        bytes_per_frame = self._sample_width * self._channels
+        jumped = False
+
+        if self._fade_mode == "out":
+            n = min(frames_in_chunk, self._fade_frames_remaining)
+            if n > 0:
+                ramp = np.linspace(1.0, 0.0, num=n, endpoint=True, dtype=np.float32)[:, None]
+                audio[:n] *= ramp
+                self._fade_frames_remaining -= n
+
+            if self._fade_frames_remaining <= 0:
+                if self._pending_jump_frame is not None:
+                    target = self._pending_jump_frame
+                    self._pending_jump_frame = None
+
+                    new_byte_pos = int(target) * bytes_per_frame
+                    new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
+
+                    with self._transport_lock:
+                        self._byte_position = new_byte_pos
+                        self._playhead = float(target)
+
+                    jumped = True
+
+                self._fade_mode = "in"
+                self._fade_frames_remaining = self._fade_frames_total
+
+        elif self._fade_mode == "in":
+            n = min(frames_in_chunk, self._fade_frames_remaining)
+            if n > 0:
+                ramp = np.linspace(0.0, 1.0, num=n, endpoint=True, dtype=np.float32)[:, None]
+                audio[:n] *= ramp
+                self._fade_frames_remaining -= n
+
+            if self._fade_frames_remaining <= 0:
+                self._fade_mode = None
+
+        chunk = self._audio_to_int16_bytes(audio)
+        return chunk, jumped
+        
+    def _maybe_schedule_loop_wrap(self, original_chunk_len_bytes: int, bytes_per_frame: int, loop_fade_ms: int):
+        frames_in_original = original_chunk_len_bytes // bytes_per_frame
+        if self._loop_enabled and self._loop_in is not None and self._loop_out is not None:
+            if self._loop_out > self._loop_in and self._fade_mode is None:
+                if (self._playhead + frames_in_original) >= self._loop_out:
+                    self.jump_with_fade(self._loop_in, fade_ms=loop_fade_ms)
+    
+    def _write_chunk(self, chunk: bytes) -> bool:
+        try:
+            self._stream.write(chunk)
+            return True
+        except Exception as e:
+            print("[audio] stream.write error:", e)
+            return False
+
+    def _advance_positions(self, original_chunk_len_bytes: int, bytes_per_frame: int):
+        frames_played = original_chunk_len_bytes // bytes_per_frame
+        with self._transport_lock:
+            self._playhead += frames_played
+            self._byte_position += original_chunk_len_bytes
+
     def _play_loop(self):
         chunk_frames = 1024
         bytes_per_frame = self._sample_width * self._channels
         loop_fade_ms = 20
 
-        while not self._stop_flag and self._byte_position < len(self._raw_data):
-            start = self._byte_position
-            end = start + chunk_frames * bytes_per_frame
+        while True:
+            with self._transport_lock:
+                if self._stop_flag or self._raw_data is None or self._byte_position >= len(self._raw_data):
+                    break
+                start = self._byte_position
+                end = start + chunk_frames * bytes_per_frame
 
             original_chunk = self._raw_data[start:end]
+            if len(original_chunk) == 0:
+                break
+        
+            # --- Apply pending seek request (thread-safe) ---
+            with self._transport_lock:
+                req = self._seek_request
+                self._seek_request = None
+
+            if req is not None:
+                target, fade_ms = req
+                if fade_ms <= 0:
+                    # immediate reposition
+                    with self._transport_lock:
+                        self._pending_jump_frame = None
+                        self._fade_mode = None
+                        self._fade_frames_remaining = 0
+                        self._fade_frames_total = 0
+                        self._playhead = float(target)
+                        self._byte_position = int(target * bytes_per_frame)
+                    continue
+                else:
+                    # clickless reposition
+                    self.jump_with_fade(target, fade_ms=fade_ms)
+                    # let fade logic run this cycle
+            
             chunk = original_chunk
 
-            if len(chunk) == 0:
+            chunk = self._apply_volume(chunk)
+            chunk = self._apply_pitch(chunk)
+
+            self._update_vu(chunk)
+
+            chunk = self._apply_filter(chunk)
+            chunk, jumped = self._apply_fade_and_jump(chunk)
+
+            self._maybe_schedule_loop_wrap(len(original_chunk), bytes_per_frame, loop_fade_ms)
+
+            with self._transport_lock:
+                if self._stop_flag or self._stream is None:
+                    break
+
+            if not self._write_chunk(chunk):
                 break
 
-            # -------------------------
-            # DSP: volume
-            # -------------------------
-            if self._volume != 1.0:
-                chunk = audioop.mul(chunk, self._sample_width, self._volume)
+            with self._transport_lock:
+                if self._stop_flag:
+                    break
 
-            # -------------------------
-            # DSP: pitch (rate conversion)
-            # -------------------------
-            if self._pitch != 1.0:
-                new_rate = int(self._frame_rate / self._pitch)
-                chunk, _ = audioop.ratecv(
-                    chunk,
-                    self._sample_width,
-                    self._channels,
-                    self._frame_rate,
-                    new_rate,
-                    None
-                )
-
-            # -------------------------
-            # Metering (VU) from post-DSP chunk
-            # -------------------------
-            samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
-            rms = np.sqrt(np.mean(samples**2))
-            self._vu = min(rms / 32768.0, 1.0)
-
-            # -------------------------
-            # DJ Filter (biquad) - only if active
-            # -------------------------
-            if self._filter_mode is not None and self._filter_cutoff_hz > 0:
-                coeffs = self._biquad_coeffs(self._filter_mode, self._filter_cutoff_hz, q=0.707)
-                if coeffs is not None:
-                    b0, b1, b2, a1, a2 = coeffs
-
-                    samples_total = len(chunk) // 2
-                    samples_total -= (samples_total % self._channels)
-                    if samples_total > 0:
-                        audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16) \
-                                .reshape(-1, self._channels).astype(np.float32)
-
-                        for ch in range(self._channels):
-                            x1 = self._bx1[ch]; x2 = self._bx2[ch]
-                            y1 = self._by1[ch]; y2 = self._by2[ch]
-                            for i in range(audio.shape[0]):
-                                x0 = audio[i, ch]
-                                y0 = b0*x0 + b1*x1 + b2*x2 - a1*y1 - a2*y2
-                                audio[i, ch] = y0
-                                x2, x1 = x1, x0
-                                y2, y1 = y1, y0
-                            self._bx1[ch], self._bx2[ch] = x1, x2
-                            self._by1[ch], self._by2[ch] = y1, y2
-
-                        audio = np.clip(audio, -32768, 32767).astype(np.int16)
-                        chunk = audio.tobytes()
-
-            # -------------------------
-            # Clickless jump fade (always available, independent of filter)
-            # -------------------------
-            if self._fade_mode is not None and len(chunk) > 0:
-                samples_total = len(chunk) // 2
-                samples_total -= (samples_total % self._channels)
-                if samples_total > 0:
-                    audio = np.frombuffer(chunk[:samples_total * 2], dtype=np.int16) \
-                            .reshape(-1, self._channels).astype(np.float32)
-
-                    frames_in_chunk = audio.shape[0]
-
-                    if self._fade_mode == "out":
-                        n = min(frames_in_chunk, self._fade_frames_remaining)
-                        if n > 0:
-                            ramp = np.linspace(1.0, 0.0, num=n, endpoint=True, dtype=np.float32)[:, None]
-                            audio[:n] *= ramp
-                            self._fade_frames_remaining -= n
-
-                        if self._fade_frames_remaining <= 0:
-                            if self._pending_jump_frame is not None:
-                                target = self._pending_jump_frame
-                                self._pending_jump_frame = None
-
-                                new_byte_pos = int(target) * bytes_per_frame
-                                new_byte_pos = max(0, min(new_byte_pos, len(self._raw_data)))
-                                self._byte_position = new_byte_pos
-                                self._playhead = float(target)
-
-                            self._fade_mode = "in"
-                            self._fade_frames_remaining = self._fade_frames_total
-
-                    elif self._fade_mode == "in":
-                        n = min(frames_in_chunk, self._fade_frames_remaining)
-                        if n > 0:
-                            ramp = np.linspace(0.0, 1.0, num=n, endpoint=True, dtype=np.float32)[:, None]
-                            audio[:n] *= ramp
-                            self._fade_frames_remaining -= n
-
-                        if self._fade_frames_remaining <= 0:
-                            self._fade_mode = None
-
-                    audio = np.clip(audio, -32768, 32767).astype(np.int16)
-                    chunk = audio.tobytes()
-
-            # -------------------------
-            # Loop wrap (predictive, single source of truth)
-            # -------------------------
-            frames_in_original = len(original_chunk) // bytes_per_frame
-            if self._loop_enabled and self._loop_in is not None and self._loop_out is not None:
-                if self._loop_out > self._loop_in and self._fade_mode is None:
-                    if (self._playhead + frames_in_original) >= self._loop_out:
-                        self.jump_with_fade(self._loop_in, fade_ms=loop_fade_ms)
-
-            # -------------------------
-            # Write audio
-            # -------------------------
-            try:
-                self._stream.write(chunk)
-            except Exception as e:
-                print("[audio] stream.write error:", e)
-                break
-
-            # -------------------------
-            # Advance playhead/byte position (based on original chunk)
-            # -------------------------
-            frames_played = frames_in_original
-            self._playhead += frames_played
-            self._byte_position += len(original_chunk)
-
-        self._stop_flag = True
+            # ✅ si hubo jump en este ciclo, NO avances (ya fijaste byte_position/playhead)
+            if not jumped:
+                self._advance_positions(len(original_chunk), bytes_per_frame)
+        
+        with self._transport_lock:
+            self._stop_flag = True
+            if self.state == "playing":
+                self.state = "stopped"
 
     def set_keylock(self, enabled: bool):
         self.keylock = enabled
@@ -364,7 +452,7 @@ class AudioEngine:
         self.seek_frame(target, fade_ms=fade_ms)
         
     def set_filter_knob(self, value: float):
-        print("[filter]", self._filter_mode, round(self._filter_cutoff_hz, 1))
+        
         """
         DJ-style filter knob:
         -1..0 = HP (more negative = stronger HP)
@@ -432,11 +520,6 @@ class AudioEngine:
         return (b0, b1, b2, a1, a2)  
     
     def seek_frame(self, target_frame: float, fade_ms: int = 12):
-        """
-        Seek to a target frame.
-        - If playing: use jump_with_fade to avoid clicks.
-        - If paused/stopped: apply immediately so UI updates instantly.
-        """
         if self._raw_data is None:
             return
 
@@ -447,23 +530,44 @@ class AudioEngine:
 
         target = int(round(float(target_frame)))
         target = max(0, min(target, total_frames - 1))
-
-        # If actively playing, do clickless jump
-        if getattr(self, "state", None) == "playing" and self._thread is not None and self._thread.is_alive():
-            self.jump_with_fade(target, fade_ms=fade_ms)
+        
+        if fade_ms <= 0:
+            with self._transport_lock:
+                self._seek_request = None
+                self._pending_jump_frame = None
+                self._fade_mode = None
+                self._fade_frames_remaining = 0
+                self._fade_frames_total = 0
+                self._playhead = float(target)
+                self._byte_position = int(target * bytes_per_frame)
             return
 
-        # Otherwise apply immediately (no audio running)
-        self._pending_jump_frame = None
-        self._fade_mode = None
-        self._fade_frames_remaining = 0
-        self._fade_frames_total = 0
+        with self._transport_lock:
+            thread_alive = self._thread is not None and self._thread.is_alive()
 
-        self._playhead = float(target)
-        self._byte_position = int(target * bytes_per_frame)
+            # If there's an active audio thread, enqueue request (thread applies it safely)
+            if thread_alive:
+                self._seek_request = (target, int(fade_ms))
+                return
 
- 
+            # No thread: apply immediately
+            self._pending_jump_frame = None
+            self._fade_mode = None
+            self._fade_frames_remaining = 0
+            self._fade_frames_total = 0
 
-
-
-
+            self._playhead = float(target)
+            self._byte_position = int(target * bytes_per_frame)
+            
+    def is_actually_playing(self) -> bool:
+        t = self._thread
+        return (
+            self._raw_data is not None
+            and self._stream is not None
+            and not self._stop_flag
+            and t is not None
+            and t.is_alive()
+        )        
+            
+            
+            
