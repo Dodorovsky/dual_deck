@@ -1,3 +1,5 @@
+from os import path
+
 import dearpygui.dearpygui as dpg
 from pathlib import Path
 from dual_deck.audio_engine import AudioEngine
@@ -142,7 +144,12 @@ def refresh_library_ui():
     for t in tracks:
         _id, path, title, bpm, dur, wf = t
         missing = not Path(path).exists()
-        label = f"{'❓ ' if missing else ''}{title} — {Path(path).name}"
+
+        #title = Path(path).stem
+        #label = f"{'❓ ' if missing else ''}{title}"
+        
+        label = f"{'❓ ' if missing else ''}{title}  |  {Path(path).name}"
+        
         library_display.append(label)
 
     dpg.configure_item("library_list", items=library_display)
@@ -155,8 +162,22 @@ def file_dialog_callback(sender, app_data):
     loop_enabled = False
     try:
         path = app_data["file_path_name"]
+        
+        if path.endswith(".*"):
+            base = path[:-2]  # quita ".*"
+            # intenta resolver a un archivo real con extensiones soportadas
+            for ext in (".mp3", ".wav", ".flac"):
+                candidate = base + ext
+                if Path(candidate).exists():
+                    path = candidate
+                    break
+        
         track_name = Path(path).stem
 
+        if not Path(path).exists():
+            print("[UI] invalid selection:", path)
+            return
+        
         if current_load_target == "A":
             dual.deck_a.safe_load(path)
             draw_global_static(dual.deck_a, "global_wave_A")
@@ -175,6 +196,8 @@ def file_dialog_callback(sender, app_data):
 
     finally:
         loop_enabled = True
+        # ✅ forzar redraw de waves/VU/playheads tras cargar
+        dpg.set_frame_callback(dpg.get_frame_count() + 1, update_local_waves)
 
 def draw_waveform(waveform, tag, width=1120, height=60):
     # Delete what was before
@@ -404,38 +427,50 @@ def draw_vu_stereo(tag, left_level, right_level, width=40, height=120, segments=
         )
  
 def load_from_library(deck_prefix):
-    global loop_enabled
-    loop_enabled = False
-    try:
-        tracks = get_all_tracks()
-        selected = dpg.get_value("library_list")
+    global loop_enabled, library_tracks, library_display
 
-        if not selected:
-            print("[UI] No track selected")
+    loop_enabled = False
+
+    if not library_tracks or not library_display:
+        refresh_library_ui()
+        if not library_tracks:
+            loop_enabled = True
             return
 
-        titles = [t[2] for t in tracks] 
-        selected_index = titles.index(selected)
-
-        track = tracks[selected_index]
-        path = track[1]      
-        title = track[2]     
-
-        if deck_prefix == "A":
-            dual.deck_a.safe_load(path)
-            draw_global_static(dual.deck_a, "global_wave_A")
-            dpg.set_value("deck_a_title", title)
-            dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
-            update_local_waves()
-            
-        else:
-            dual.deck_b.safe_load(path)
-            draw_global_static(dual.deck_b, "global_wave_B")
-            dpg.set_value("deck_b_title", title)
-            dpg.set_value("B_bpm_label", f"{dual.deck_b.bpm:.2f} BPM")
-            update_local_waves()
-    finally:  
+    selected = dpg.get_value("library_list")
+    if not selected:
         loop_enabled = True
+        return
+
+    try:
+        idx = library_display.index(selected)
+    except ValueError:
+        # la lista cambió, refrescamos y salimos
+        refresh_library_ui()
+        loop_enabled = True
+        return
+
+    track = library_tracks[idx]
+    path = track[1]
+    title = track[2]
+
+    # si falta el archivo, no intentes cargarlo
+    if not Path(path).exists():
+        print("[UI] Missing file:", path)
+        loop_enabled = True
+        return
+
+    if deck_prefix == "A":
+        dual.deck_a.safe_load(path)
+        dpg.set_value("deck_a_title", title)
+        dpg.set_value("A_bpm_label", f"{dual.deck_a.bpm:.2f} BPM")
+    else:
+        dual.deck_b.safe_load(path)
+        dpg.set_value("deck_b_title", title)
+        dpg.set_value("B_bpm_label", f"{dual.deck_b.bpm:.2f} BPM")
+
+    loop_enabled = True
+    update_local_waves()
   
 def reanalyze_track():
     tracks = get_all_tracks()
@@ -965,11 +1000,15 @@ def start_ui():
         width=600,
         height=400
     ):
-        dpg.add_file_extension(".mp3", color=(0, 255, 0, 255))
-        dpg.add_file_extension(".wav", color=(0, 200, 255, 255))
+        # ✅ Filtro por defecto: muestra todo
+        dpg.add_file_extension(".*", color=(200, 200, 200, 255))
+
+        # ✅ Tus formatos de audio (se seguirán coloreando)
+        dpg.add_file_extension(".mp3",  color=(0, 255, 0, 255))
+        dpg.add_file_extension(".wav",  color=(0, 200, 255, 255))
         dpg.add_file_extension(".flac", color=(255, 150, 0, 255))
+
         dpg.add_button(label="Cancel", callback=lambda: dpg.hide_item("file_dialog_id"))
-    
 
     # -----------------------------
     # START DPG

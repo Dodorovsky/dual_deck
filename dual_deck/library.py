@@ -5,7 +5,8 @@ import os
 print("[library] DB path:", os.path.abspath("library.db"))
 
 
-DB_PATH = "library.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "library.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -21,11 +22,15 @@ def init_db():
             waveform_path TEXT
         )
     """)
-
+   
     conn.commit()
     conn.close()
+    
+
+    
 
 def add_track(path, title, bpm, duration, waveform_path):
+    path = os.path.normpath(os.path.abspath(path))
     """Insert a track into the library."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -76,3 +81,10 @@ def delete_track_from_library(path):
     
 def track_exists_on_disk(path: str) -> bool:
     return os.path.exists(path)
+
+def delete_invalid_paths():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM tracks WHERE path LIKE '%.*'")
+    conn.commit()
+    conn.close()
