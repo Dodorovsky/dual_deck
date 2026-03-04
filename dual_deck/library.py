@@ -73,3 +73,6 @@ def delete_track_from_library(path):
     conn.close()
 
     print(f"[library] Deleted track: {path}")
+    
+def track_exists_on_disk(path: str) -> bool:
+    return os.path.exists(path)

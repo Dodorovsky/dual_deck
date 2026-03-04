@@ -3,7 +3,7 @@ from pathlib import Path
 from dual_deck.audio_engine import AudioEngine
 from dual_deck.deck import DualDeck
 from dual_deck.waveform import draw_local_waveform
-from dual_deck.library import get_all_tracks, delete_track_from_library
+from dual_deck.library import get_all_tracks, delete_track_from_library, track_exists_on_disk
 
 dual = DualDeck(audio_engine_cls=AudioEngine)
 
@@ -132,20 +132,23 @@ def crossfader_callback(sender, app_data):
     dpg.set_value("cross_value", f"{app_data:.2f}")
     
 def refresh_library_ui():
-    global library_tracks
+    global library_tracks, library_display
 
     tracks = get_all_tracks()
     library_tracks = tracks
 
-    names = [t[2] for t in tracks]  # show titles
+    # mostramos algo "único" y marcamos missing
+    library_display = []
+    for t in tracks:
+        _id, path, title, bpm, dur, wf = t
+        missing = not Path(path).exists()
+        label = f"{'❓ ' if missing else ''}{title} — {Path(path).name}"
+        library_display.append(label)
 
+    dpg.configure_item("library_list", items=library_display)
 
-    dpg.configure_item("library_list", items=names)
-
-    if names:
-        dpg.set_value("library_list", names[0])
-
-    dpg.set_value("library_list", names)
+    if library_display:
+        dpg.set_value("library_list", library_display[0])
     
 def file_dialog_callback(sender, app_data):
     global loop_enabled, current_load_target
@@ -633,17 +636,6 @@ def on_global_mouse_click(sender, app_data):
 
             fade = 12 if eng.is_actually_playing() else 0
 
-            print(
-                "[seek]",
-                "tag=", tag,
-                "state=", eng.state,
-                "stop=", eng._stop_flag,
-                "thread_alive=", (eng._thread is not None and eng._thread.is_alive()),
-                "stream_none=", (eng._stream is None),
-                "fade=", fade,
-                "ratio=", round(ratio, 4),
-            )
-
             eng.seek_ratio(ratio, fade_ms=fade)
 
             # ✅ fuerza redraw en el siguiente frame para que el playhead se vea moverse en pausa
@@ -652,6 +644,27 @@ def on_global_mouse_click(sender, app_data):
             return  # importante: solo un deck por click
 
     # click fuera de las waves globales: no hacemos nada
+
+def remove_selected_from_library():
+    if not library_tracks or not library_display:
+        refresh_library_ui()
+        if not library_tracks:
+            return
+
+    selected = dpg.get_value("library_list")
+    if not selected:
+        return
+
+    try:
+        idx = library_display.index(selected)
+    except ValueError:
+        # selección no coincide con items (por refresh), reintenta
+        refresh_library_ui()
+        return
+
+    path = library_tracks[idx][1]
+    delete_track_from_library(path)
+    refresh_library_ui()
 
 # -----------------------------
 # Building UI
@@ -738,7 +751,7 @@ def start_ui():
     # -----------------------------
     # GLOBAL WAVEFORM A
     # -----------------------------
-    with dpg.window(label="Dual Deck", width=1150, height=840, tag="main_window"):
+    with dpg.window(label="Dual Deck", width=1150, height=870, tag="main_window"):
         dpg.add_spacer(height=20)
 
         # GLOBAL A
@@ -928,13 +941,16 @@ def start_ui():
          
         dpg.add_button(label="Reanalyze Selected", callback=reanalyze_track)
 
-        with dpg.child_window(label="Library", tag="library_window", width=1120, height=320):
+        with dpg.child_window(label="Library", tag="library_window", width=1120, height=350):
 
             dpg.add_listbox([], tag="library_list", width=1110, num_items=15)
             with dpg.group(horizontal=True):    
                 dpg.add_button(label="Load to Deck A", callback=lambda: load_from_library("A"))
                 dpg.add_button(label="Load to Deck B", callback=lambda: load_from_library("B"))
 
+            # botón en la UI
+            dpg.add_button(label="Remove from Library", callback=remove_selected_from_library)
+            
         refresh_library_ui()
 
 
@@ -958,7 +974,7 @@ def start_ui():
     # -----------------------------
     # START DPG
     # -----------------------------
-    dpg.create_viewport(title="Dual Deck", width=1150, height=840)
+    dpg.create_viewport(title="Dual Deck", width=1150, height=870)
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
